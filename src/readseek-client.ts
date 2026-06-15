@@ -6,7 +6,7 @@ import { DetailLevel } from "./readseek/enums.js";
 import type { FileMap, FileSymbol } from "./readseek/types.js";
 import { SymbolKind } from "./readseek/enums.js";
 
-interface ReadseekHashline {
+export interface ReadseekHashline {
 	line: number;
 	hash: string;
 	text: string;

@@ -4,10 +4,10 @@ import { Type } from "@sinclair/typebox";
 import path from "node:path";
 import { stat as fsStat } from "node:fs/promises";
 import { defineToolPromptMetadata } from "./tool-prompt-metadata.js";
-import { ensureHashInit } from "./hashline.js";
-import { buildReadseekError, buildReadseekLine, type ReadseekLine } from "./readseek-value.js";
+import { escapeControlCharsForDisplay } from "./hashline.js";
+import { buildReadseekError, type ReadseekLine } from "./readseek-value.js";
 import { resolveToCwd } from "./path-utils.js";
-import { isReadseekAvailable, readseekSearch, type ReadseekSearchFileOutput } from "./readseek-client.js";
+import { isReadseekAvailable, readseekSearch, type ReadseekHashline, type ReadseekSearchFileOutput } from "./readseek-client.js";
 import { buildSgOutput } from "./sg-output.js";
 
 import { clampLineToWidth, clampLinesToWidth, isRendererExpanded, renderToolLabel, summaryLine } from "./tui-render-utils.js";
@@ -62,8 +62,14 @@ interface SgToolOptions {
   onFileAnchored?: (absolutePath: string) => void;
 }
 
-function readseekLineFromSearch(line: { line: number; text: string }): ReadseekLine {
-  return buildReadseekLine(line.line, line.text);
+function readseekLineFromSearch(line: ReadseekHashline): ReadseekLine {
+  return {
+    line: line.line,
+    hash: line.hash,
+    anchor: `${line.line}:${line.hash}`,
+    raw: line.text,
+    display: escapeControlCharsForDisplay(line.text),
+  };
 }
 
 function linesFromSearchResult(result: ReadseekSearchFileOutput, ranges: SgRange[]): ReadseekLine[] {
@@ -119,7 +125,6 @@ export function registerSgTool(pi: ExtensionAPI, options: SgToolOptions = {}) {
     }),
     ptc: toolConfig,
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      await ensureHashInit();
       const p = params as SgParams;
       if (p.ignored && !p.others) {
         const message = "Error: search parameter 'ignored' requires 'others'";
