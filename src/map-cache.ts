@@ -134,19 +134,3 @@ export async function getOrGenerateMap(absPath: string): Promise<FileMap | null>
 		return null;
 	}
 }
-export function setMapCacheMaxSize(size: number): void {
-	getMapCacheState().maxSize = size;
-}
-
-/**
- * Clear the map cache. Exported for testing.
- */
-export function clearMapCache(): void {
-	const state = getMapCacheState();
-	state.cache.clear();
-	state.maxSize = MAP_CACHE_MAX_SIZE;
-}
-
-export function __getInMemoryMapCacheSizeForTest(): number {
-	return getMapCacheState().cache.size;
-}

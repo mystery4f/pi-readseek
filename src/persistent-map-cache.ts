@@ -178,31 +178,17 @@ export async function writeCachedRaw(key: string, map: FileMap): Promise<void> {
   await tryWriteCachedRaw(key, map);
 }
 
-const DEFAULT_EVICTION_INTERVAL = 20;
-const DEFAULT_EVICTION_CAP = 5000;
+const EVICTION_INTERVAL = 20;
+const EVICTION_CAP = 5000;
 let writeCounter = 0;
-let evictionInterval = DEFAULT_EVICTION_INTERVAL;
-let evictionCap = DEFAULT_EVICTION_CAP;
 
-export function __setEvictionHooksForTest(
-  hooks: { interval?: number; cap?: number } | null,
-): void {
-  if (hooks === null) {
-    evictionInterval = DEFAULT_EVICTION_INTERVAL;
-    evictionCap = DEFAULT_EVICTION_CAP;
-    return;
-  }
-
-  if (typeof hooks.interval === "number") evictionInterval = hooks.interval;
-  if (typeof hooks.cap === "number") evictionCap = hooks.cap;
-}
 
 const CACHE_KEY_FILE = /^[0-9a-f]{32}\.json$/;
 async function maybeEvict(): Promise<void> {
   try {
     const dir = resolveCacheDir();
     const names = (await readdir(dir)).filter((n) => CACHE_KEY_FILE.test(n));
-    if (names.length <= evictionCap) return;
+    if (names.length <= EVICTION_CAP) return;
 
     const entries: Array<{ path: string; age: number }> = [];
     for (const name of names) {
@@ -217,7 +203,7 @@ async function maybeEvict(): Promise<void> {
     }
 
     entries.sort((a, b) => a.age - b.age);
-    const excess = entries.length - evictionCap;
+    const excess = entries.length - EVICTION_CAP;
     for (let i = 0; i < excess; i += 1) {
       try {
         await unlink(entries[i].path);
@@ -236,7 +222,7 @@ async function maybeEvict(): Promise<void> {
 export async function writeCached(key: string, map: FileMap): Promise<void> {
   if (!(await tryWriteCachedRaw(key, map))) return;
   writeCounter += 1;
-  if (writeCounter % evictionInterval === 0) {
+  if (writeCounter % EVICTION_INTERVAL === 0) {
     try {
       await maybeEvict();
     } catch {
@@ -245,7 +231,3 @@ export async function writeCached(key: string, map: FileMap): Promise<void> {
   }
 }
 
-// Test-only: reset the write counter between suites.
-export function __resetWriteCounter(): void {
-  writeCounter = 0;
-}
