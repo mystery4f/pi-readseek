@@ -115,18 +115,6 @@ export function formatHashlineDisplay(lineNumber: number, content: string): stri
 	return `${lineNumber}:${computeLineHash(lineNumber, content)}|${escapeControlCharsForDisplay(content)}`;
 }
 
-export function hashLine(lineNumber: number, content: string): string {
-	return formatHashlineDisplay(lineNumber, content);
-}
-
-export function hashLines(content: string): string {
-	return content
-		.split("\n")
-		.map((line, i) => formatHashlineDisplay(i + 1, line))
-		.join("\n");
-}
-
-
 export function parseLineRef(ref: string): { line: number; hash: string; content?: string } {
 	const contentMatch = ref.match(/^[^|]*\|(.*)$/);
 	const contentAfterPipe = contentMatch ? contentMatch[1] : undefined;

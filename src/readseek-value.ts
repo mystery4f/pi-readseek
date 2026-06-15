@@ -37,12 +37,6 @@ export interface ReadseekRange {
   totalLines?: number;
 }
 
-export interface ReadseekFileGroup {
-  path: string;
-  ranges: ReadseekRange[];
-  lines: ReadseekLine[];
-}
-
 export interface SemanticSummary {
   classification: "no-op" | "whitespace-only" | "semantic" | "mixed";
   difftasticAvailable: boolean;
@@ -103,18 +97,6 @@ export function buildReadseekError(
     message,
     ...(hint !== undefined ? { hint } : {}),
     ...(details !== undefined ? { details } : {}),
-  };
-}
-
-export function buildReadseekRange(startLine: number, endLine: number, totalLines?: number): ReadseekRange {
-  return totalLines === undefined ? { startLine, endLine } : { startLine, endLine, totalLines };
-}
-
-export function buildReadseekFileGroup(path: string, ranges: ReadseekRange[], lines: ReadseekLine[]): ReadseekFileGroup {
-  return {
-    path,
-    ranges: ranges.map((range) => ({ ...range })),
-    lines: lines.map((line) => ({ ...line })),
   };
 }
 
