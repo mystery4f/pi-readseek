@@ -37,6 +37,12 @@ npm install --save-dev @jarkkojs/readseek
 - **write** — creates or overwrites whole files and returns anchors for
   immediate follow-up edits.
 
+## Related
+
+- [readseek.vim](https://github.com/jarkkojs/readseek.vim) — Vim 9 plugin
+  frontend for the readseek CLI. Provides go-to-definition, references,
+  rename, hover, and structural search from within Vim.
+
 ## Licensing
 
 `pi-readseek` is licensed under `MIT`. See [LICENSE](LICENSE) for more
