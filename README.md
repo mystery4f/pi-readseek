@@ -2,8 +2,8 @@
 
 `pi-readseek` is a pi extension for readseek-backed file reading, hash-anchored
 editing, anchored grep, structural maps, symbol lookup, and structural search.
-It exists to resolve conflicts between overlapping pi file-operation tools by
-exposing one consistent readseek-centered surface.
+It resolves conflicts between overlapping pi file-operation tools by exposing
+one consistent readseek-centered surface.
 
 ## Installation
 
@@ -11,25 +11,31 @@ exposing one consistent readseek-centered surface.
 pi install npm:pi-readseek
 ```
 
+The structural search and map features require the `@jarkkojs/readseek` native
+binary. The extension auto-installs the correct platform package, or you can
+install it manually:
+
+```bash
+# Auto-installed by the extension on supported platforms.
+# Manual install (if needed):
+npm install --save-dev @jarkkojs/readseek
+```
+
 ## Tools
 
-- `read` — reads text files with `LINE:HASH` anchors for later `edit` calls;
-  images are returned as attachments. Large or symbol-scoped reads can include
-  structural maps powered by `@jarkkojs/readseek`.
-- `edit` — changes existing text files using fresh anchors from `read`, `grep`,
-  `search`, or `write`. Use anchored variants such as `set_line`; `new_text`
-  must be plain replacement text and never include `LINE:HASH|` prefixes.
-  Set `new_text` to `""` to delete a line. Fuzzy replacement is literal
-  relocation, not approximate or semantic matching.
-- `grep` — searches text and returns edit-ready `LINE:HASH` anchors without a
+- **read** — reads text files with `LINE:HASH` anchors for later `edit` calls;
+  images are returned as attachments. Supports `symbol`, `map`, and `bundle`
+  options powered by `@jarkkojs/readseek`.
+- **edit** — changes existing text files using fresh anchors from `read`,
+  `grep`, `search`, or `write`. Variants: `set_line`, `replace_lines`,
+  `insert_after`, `replace_symbol`, `replace`. Set `new_text` to `""` to
+  delete a line.
+- **grep** — searches text and returns edit-ready `LINE:HASH` anchors without a
   follow-up `read`.
-- `search` — searches code by structural pattern and returns anchored
-  matches; use it when syntax matters more than raw text.
-- `write` — creates or overwrites whole files and returns anchors for immediate
-  follow-up edits. Create a new file with `write` when there is no existing file
-  to edit.
-- `ls` — lists one directory.
-- `find` — recursively discovers files and directories.
+- **search** — searches code by structural pattern (AST) and returns anchored
+  matches. Use when syntax matters more than raw text.
+- **write** — creates or overwrites whole files and returns anchors for
+  immediate follow-up edits.
 
 ## Licensing
 
