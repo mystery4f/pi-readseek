@@ -170,6 +170,18 @@ interface RunReadseekOptions {
 
 async function runReadseekRaw(args: string[], options: RunReadseekOptions = {}): Promise<string> {
 	return new Promise<string>((resolve, reject) => {
+		let settled = false;
+		const fail = (error: Error): void => {
+			if (settled) return;
+			settled = true;
+			reject(error);
+		};
+		const succeed = (value: string): void => {
+			if (settled) return;
+			settled = true;
+			resolve(value);
+		};
+
 		const stdin = options.stdin;
 		const stdio: StdioOptions = [stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"];
 		const child = spawn(readseekBinaryPath(), args, { stdio, signal: options.signal });
@@ -178,7 +190,7 @@ async function runReadseekRaw(args: string[], options: RunReadseekOptions = {}):
 		const childStdin = child.stdin;
 		if (!childStdout || !childStderr) {
 			child.kill();
-			reject(new Error("readseek stdio streams are unavailable"));
+			fail(new Error("readseek stdio streams are unavailable"));
 			return;
 		}
 		const stdoutChunks: Buffer[] = [];
@@ -186,32 +198,33 @@ async function runReadseekRaw(args: string[], options: RunReadseekOptions = {}):
 		let stdoutBytes = 0;
 
 		childStdout.on("data", (chunk: Buffer) => {
+			if (settled) return;
 			stdoutBytes += chunk.length;
 			if (stdoutBytes > 32 * 1024 * 1024) {
 				child.kill();
-				reject(new Error("readseek output exceeded 32 MiB"));
+				fail(new Error("readseek output exceeded 32 MiB"));
 				return;
 			}
 			stdoutChunks.push(chunk);
 		});
 		childStderr.on("data", (chunk: Buffer) => stderrChunks.push(chunk));
-		child.on("error", (error: any) => reject(error));
+		child.on("error", (error: any) => fail(error));
 		if (stdin !== undefined) {
 			if (!childStdin) {
 				child.kill();
-				reject(new Error("readseek stdin stream is unavailable"));
+				fail(new Error("readseek stdin stream is unavailable"));
 				return;
 			}
 			childStdin.on("error", (error: any) => {
-				if (error?.code !== "EPIPE") reject(error);
+				if (error?.code !== "EPIPE") fail(error);
 			});
 			childStdin.end(stdin, "utf-8");
 		}
 		child.on("close", (code) => {
 			const stdout = Buffer.concat(stdoutChunks).toString("utf-8");
 			const stderr = Buffer.concat(stderrChunks).toString("utf-8").trim();
-			if (code === 0) resolve(stdout);
-			else reject(new Error((stderr || `readseek exited with status ${code}`).replace(/^error:\s*/i, "")));
+			if (code === 0) succeed(stdout);
+			else fail(new Error((stderr || `readseek exited with status ${code}`).replace(/^error:\s*/i, "")));
 		});
 	});
 }
