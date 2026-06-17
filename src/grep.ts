@@ -406,8 +406,8 @@ export function registerGrepTool(pi: ExtensionAPI, options: GrepToolOptions = {}
 					fileCache.set(absolutePath, lines);
 					return lines;
 				} catch {
-					fileCache.set(absolutePath, []);
-					return [];
+					fileCache.set(absolutePath, undefined);
+					return undefined;
 				}
 			};
 
