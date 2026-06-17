@@ -94,6 +94,18 @@ export interface ReadseekRefsOptions {
 	signal?: AbortSignal;
 }
 
+export interface ReadseekDiagnostic {
+	kind: "error" | "missing";
+	start_line: number;
+	end_line: number;
+}
+
+export interface ReadseekCheckOutput {
+	errorCount: number;
+	missingCount: number;
+	diagnostics: ReadseekDiagnostic[];
+}
+
 export interface ReadseekSearchOptions {
 	language?: string;
 	cached?: boolean;
@@ -471,4 +483,38 @@ export async function readseekRefs(
 	if (options.others) args.push("--others");
 	if (options.ignored) args.push("--ignored");
 	return parseRefsOutput(await runReadseek(args, { signal: options.signal })).references;
+}
+
+function parseDiagnosticKind(value: unknown): ReadseekDiagnostic["kind"] {
+	if (value === "error" || value === "missing") return value;
+	throw new Error("invalid readseek diagnostic.kind");
+}
+
+function parseCheckOutput(value: unknown): ReadseekCheckOutput {
+	if (!value || typeof value !== "object") throw new Error("invalid readseek check output");
+	const output = value as Record<string, unknown>;
+	if (!Array.isArray(output.diagnostics)) throw new Error("invalid readseek diagnostics");
+	return {
+		errorCount: requireNumber(output.error_count, "error_count"),
+		missingCount: requireNumber(output.missing_count, "missing_count"),
+		diagnostics: output.diagnostics.map((diagnostic) => {
+			if (!diagnostic || typeof diagnostic !== "object") throw new Error("invalid readseek diagnostic");
+			const item = diagnostic as Record<string, unknown>;
+			return {
+				kind: parseDiagnosticKind(item.kind),
+				start_line: requireNumber(item.start_line, "diagnostic.start_line"),
+				end_line: requireNumber(item.end_line, "diagnostic.end_line"),
+			};
+		}),
+	};
+}
+
+export async function readseekCheck(
+	filePath: string,
+	content: string,
+	options: { signal?: AbortSignal } = {},
+): Promise<ReadseekCheckOutput> {
+	return parseCheckOutput(
+		await runReadseek(["check", "--stdin", filePath], { signal: options.signal, stdin: content }),
+	);
 }
