@@ -16,6 +16,7 @@ import { generateCompactOrFullDiff, normalizeToLF, hasBareCarriageReturn } from 
 import { buildDiffData, type DiffData } from "./diff-data.js";
 import { clampLineToWidth, clampLinesToWidth, isRendererExpanded, linkToolPath, renderToolLabel, summaryLine } from "./tui-render-utils.js";
 import { DiffPreviewComponent } from "./tui-diff-component.js";
+import type { FileAnchoredCallback } from "./tool-types.js";
 
 const WRITE_PENDING_PREVIEW_STATE_KEY = "hashline-write-pending-preview";
 
@@ -113,7 +114,7 @@ function generateWriteDiff(previousContent: string, nextContent: string): { diff
 }
 
 export interface WriteToolOptions {
-  onFileAnchored?: (absolutePath: string) => void;
+  onFileAnchored?: FileAnchoredCallback;
 }
 
 type MappedFsError = {

@@ -8,6 +8,7 @@ import { buildReadseekLineWithHash, buildToolErrorResult } from "./readseek-valu
 import { resolveToCwd } from "./path-utils.js";
 import { isReadseekAvailable, readseekRefs, type ReadseekReference } from "./readseek-client.js";
 import { buildRefsOutput, type RefsOutputFile, type RefsOutputLine } from "./refs-output.js";
+import type { FileAnchoredCallback } from "./tool-types.js";
 
 import { clampLineToWidth, renderAnchoredFilesResult, renderToolLabel } from "./tui-render-utils.js";
 
@@ -33,7 +34,7 @@ export function isRefsAvailable(): boolean {
 }
 
 interface RefsToolOptions {
-  onFileAnchored?: (absolutePath: string) => void;
+  onFileAnchored?: FileAnchoredCallback;
 }
 
 /**
@@ -43,7 +44,7 @@ export interface ExecuteRefsOptions {
   params: unknown;
   signal: AbortSignal | undefined;
   cwd: string;
-  onFileAnchored?: (absolutePath: string) => void;
+  onFileAnchored?: FileAnchoredCallback;
 }
 
 function refsLine(reference: ReadseekReference): RefsOutputLine {

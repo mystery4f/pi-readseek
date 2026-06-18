@@ -18,6 +18,7 @@ import { Text } from "@earendil-works/pi-tui";
 import { formatGrepCallText, formatGrepResultText } from "./grep-render-helpers.js";
 import { coerceObviousBase10Int } from "./coerce-obvious-int.js";
 import { clampLineToWidth, clampLinesToWidth, linkToolPath, renderToolLabel, resolveRenderResultContext, summaryLine } from "./tui-render-utils.js";
+import type { FileAnchoredCallback } from "./tool-types.js";
 
 const GREP_PROMPT_METADATA = defineToolPromptMetadata({
 	promptUrl: new URL("../prompts/grep.md", import.meta.url),
@@ -180,7 +181,7 @@ function escapeForRegex(s: string): string {
 
 interface GrepToolOptions {
 	searchGuideline?: string;
-	onFileAnchored?: (absolutePath: string) => void;
+	onFileAnchored?: FileAnchoredCallback;
 }
 
 export interface ExecuteGrepOptions {
@@ -189,7 +190,7 @@ export interface ExecuteGrepOptions {
 	signal: AbortSignal | undefined;
 	onUpdate: any;
 	cwd: string;
-	onFileAnchored?: (absolutePath: string) => void;
+	onFileAnchored?: FileAnchoredCallback;
 }
 
 export async function executeGrep(opts: ExecuteGrepOptions): Promise<any> {

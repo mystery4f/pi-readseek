@@ -22,6 +22,7 @@ import { buildEditPreviewKey, buildPendingEditPreviewData, resolvePendingDiffPre
 import { buildDiffData, type DiffBlockRange } from "./diff-data.js";
 import { clampLineToWidth, clampLinesToWidth, linkToolPath, resolveRenderResultContext, summaryLine } from "./tui-render-utils.js";
 import { DiffPreviewComponent } from "./tui-diff-component.js";
+import type { FreshAnchorsPredicate } from "./tool-types.js";
 
 import { resolveEditDiffDisplay } from "./readseek-settings.js";
 
@@ -134,7 +135,7 @@ function mapEditFileError(err: any, filePath: string, displayPath: string, phase
 }
 
 export interface EditToolOptions {
-	wasReadInSession?: (absolutePath: string) => boolean;
+	wasReadInSession?: FreshAnchorsPredicate;
 	syntaxValidate?: SyntaxValidateOptions["syntaxValidate"];
 }
 
@@ -142,7 +143,7 @@ export interface ExecuteEditOptions {
 	params: unknown;
 	signal: AbortSignal | undefined;
 	cwd: string;
-	wasReadInSession?: (absolutePath: string) => boolean;
+	wasReadInSession?: FreshAnchorsPredicate;
 	syntaxValidate?: SyntaxValidateOptions["syntaxValidate"];
 }
 

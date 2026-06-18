@@ -27,6 +27,7 @@ import { readseekRead } from "./readseek-client.js";
 import { Text } from "@earendil-works/pi-tui";
 import { formatReadCallText, formatReadResultText } from "./read-render-helpers.js";
 import { clampLineToWidth, clampLinesToWidth, linkToolPath, renderToolLabel, resolveRenderResultContext, summaryLine, wrapReadHashlinesForWidth } from "./tui-render-utils.js";
+import type { FileAnchoredCallback } from "./tool-types.js";
 
 const READ_PROMPT_METADATA = defineToolPromptMetadata({
 	promptUrl: new URL("../prompts/read.md", import.meta.url),
@@ -43,7 +44,7 @@ interface ReadParams {
 }
 
 interface ReadToolOptions {
-	onSuccessfulRead?: (absolutePath: string) => void;
+	onSuccessfulRead?: FileAnchoredCallback;
 }
 
 export interface ExecuteReadOptions {
@@ -52,7 +53,7 @@ export interface ExecuteReadOptions {
 	signal: AbortSignal | undefined;
 	onUpdate: any;
 	cwd: string;
-	onSuccessfulRead?: (absolutePath: string) => void;
+	onSuccessfulRead?: FileAnchoredCallback;
 }
 
 export async function executeRead(opts: ExecuteReadOptions): Promise<AgentToolResult<any>> {

@@ -8,6 +8,7 @@ import { buildReadseekLineWithHash, buildToolErrorResult, type ReadseekLine } fr
 import { resolveToCwd } from "./path-utils.js";
 import { isReadseekAvailable, readseekSearch, type ReadseekHashline, type ReadseekSearchFileOutput } from "./readseek-client.js";
 import { buildSgOutput } from "./sg-output.js";
+import type { FileAnchoredCallback } from "./tool-types.js";
 
 import { clampLineToWidth, renderAnchoredFilesResult, renderToolLabel } from "./tui-render-utils.js";
 
@@ -53,7 +54,7 @@ export function isSgAvailable(): boolean {
 }
 
 interface SgToolOptions {
-  onFileAnchored?: (absolutePath: string) => void;
+  onFileAnchored?: FileAnchoredCallback;
 }
 
 /**
@@ -63,7 +64,7 @@ export interface ExecuteSgOptions {
   params: unknown;
   signal: AbortSignal | undefined;
   cwd: string;
-  onFileAnchored?: (absolutePath: string) => void;
+  onFileAnchored?: FileAnchoredCallback;
 }
 
 function readseekLineFromSearch(line: ReadseekHashline): ReadseekLine {
