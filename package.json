@@ -1,6 +1,6 @@
 {
   "name": "pi-readseek",
-  "version": "0.3.20",
+  "version": "0.3.21",
   "description": "Pi extension for readseek-backed hash-anchored read/edit/grep, structural code maps, structural search, and file exploration",
   "type": "module",
   "exports": {
