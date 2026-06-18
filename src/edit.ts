@@ -7,6 +7,7 @@ import { createPatch } from "diff";
 import { detectLineEnding, generateCompactOrFullDiff, normalizeToLF, replaceText, restoreLineEndings, stripBom } from "./edit-diff.js";
 import { HashlineMismatchError, applyHashlineEdits, computeLineHash, ensureHashInit, parseLineRef, type HashlineEditItem, escapeControlCharsForDisplay } from "./hashline.js";
 import { resolveToCwd } from "./path-utils.js";
+import { looksLikeBinary } from "./binary-detect.js";
 import { throwIfAborted } from "./runtime.js";
 import { buildEditOutput } from "./edit-output.js";
 import { classifyEdit, isDifftAvailable, runDifftastic } from "./edit-classify.js";
@@ -39,10 +40,6 @@ export function wrapWriteError(err: any, path: string): Error {
 		return new Error(`Permission denied: ${path}`);
 	}
 	return new Error(`Failed to write file: ${path}`);
-}
-
-export function isBinaryBuffer(buf: Buffer): boolean {
-	return buf.includes(0);
 }
 
 
@@ -239,7 +236,7 @@ export async function executeEdit(opts: ExecuteEditOptions): Promise<any> {
 	} catch (err: any) {
 		return mapEditFileError(err, absolutePath, path, "read");
 	}
-	if (isBinaryBuffer(rawBuffer)) {
+	if (looksLikeBinary(rawBuffer)) {
 		const message = `Cannot edit binary file: ${path}`;
 		return buildEditError(absolutePath, "binary-file", message);
 	}
