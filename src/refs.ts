@@ -36,6 +36,16 @@ interface RefsToolOptions {
   onFileAnchored?: (absolutePath: string) => void;
 }
 
+/**
+ * Inputs for executing the references tool without registering it.
+ */
+export interface ExecuteRefsOptions {
+  params: unknown;
+  signal: AbortSignal | undefined;
+  cwd: string;
+  onFileAnchored?: (absolutePath: string) => void;
+}
+
 function refsLine(reference: ReadseekReference): RefsOutputLine {
   return {
     ...buildReadseekLineWithHash(reference.line, reference.line_hash, reference.text),
@@ -59,6 +69,72 @@ function groupReferences(references: ReadseekReference[], cwd: string): RefsOutp
     file.lines.push(refsLine(reference));
   }
   return [...files.values()];
+}
+
+/**
+ * Executes identifier reference lookup and returns readseek-anchored matches.
+ */
+export async function executeRefs(opts: ExecuteRefsOptions): Promise<any> {
+  const { params, signal, cwd, onFileAnchored } = opts;
+  const p = params as RefsParams;
+  if (p.ignored && !p.others) {
+    return buildToolErrorResult("refs", "invalid-parameter", "Error: refs parameter 'ignored' requires 'others'");
+  }
+  if (p.scope && p.line === undefined) {
+    return buildToolErrorResult("refs", "invalid-parameter", "Error: refs parameter 'scope' requires 'line'");
+  }
+  const searchPath = resolveToCwd(p.path ?? ".", cwd);
+
+  try {
+    await fsStat(searchPath);
+  } catch (err: any) {
+    if (err?.code === "ENOENT") {
+      return buildToolErrorResult("refs", "path-not-found", `Error: path '${p.path ?? "."}' does not exist`, {
+        path: p.path ?? searchPath,
+      });
+    }
+    if (err?.code === "EACCES" || err?.code === "EPERM") {
+      return buildToolErrorResult("refs", "permission-denied", `Error: permission denied for path '${p.path ?? "."}'`, {
+        path: p.path ?? searchPath,
+      });
+    }
+    const message = `Error: could not access path '${p.path ?? "."}': ${err?.message ?? String(err)}`;
+    return buildToolErrorResult("refs", "fs-error", message, {
+      path: p.path ?? searchPath,
+      details: { fsCode: err?.code, fsMessage: err?.message },
+    });
+  }
+
+  try {
+    const references = await readseekRefs(searchPath, p.name, {
+      scope: p.scope,
+      line: p.line,
+      column: p.column,
+      language: p.lang,
+      cached: p.cached,
+      others: p.others,
+      ignored: p.ignored,
+      signal,
+    });
+    const files = groupReferences(references, cwd);
+    const builtOutput = buildRefsOutput({ name: p.name, files });
+    for (const file of files) {
+      onFileAnchored?.(file.path);
+    }
+    return {
+      content: [{ type: "text", text: builtOutput.text }],
+      details: { readseekValue: builtOutput.readseekValue },
+    };
+  } catch (err: any) {
+    const message = String(err?.message || err);
+    const missingReadseek = err?.code === "ENOENT" || /Cannot find package|Cannot find module|no such file/i.test(message);
+    return buildToolErrorResult(
+      "refs",
+      missingReadseek ? "readseek-not-installed" : "readseek-execution-error",
+      message,
+      missingReadseek ? { hint: "Run npm install to install @jarkkojs/readseek." } : {},
+    );
+  }
 }
 
 export function registerRefsTool(pi: ExtensionAPI, options: RefsToolOptions = {}) {
@@ -90,65 +166,7 @@ export function registerRefsTool(pi: ExtensionAPI, options: RefsToolOptions = {}
     }),
     ptc: toolConfig,
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      const p = params as RefsParams;
-      if (p.ignored && !p.others) {
-        return buildToolErrorResult("refs", "invalid-parameter", "Error: refs parameter 'ignored' requires 'others'");
-      }
-      if (p.scope && p.line === undefined) {
-        return buildToolErrorResult("refs", "invalid-parameter", "Error: refs parameter 'scope' requires 'line'");
-      }
-      const searchPath = resolveToCwd(p.path ?? ".", ctx.cwd);
-
-      try {
-        await fsStat(searchPath);
-      } catch (err: any) {
-        if (err?.code === "ENOENT") {
-          return buildToolErrorResult("refs", "path-not-found", `Error: path '${p.path ?? "."}' does not exist`, {
-            path: p.path ?? searchPath,
-          });
-        }
-        if (err?.code === "EACCES" || err?.code === "EPERM") {
-          return buildToolErrorResult("refs", "permission-denied", `Error: permission denied for path '${p.path ?? "."}'`, {
-            path: p.path ?? searchPath,
-          });
-        }
-        const message = `Error: could not access path '${p.path ?? "."}': ${err?.message ?? String(err)}`;
-        return buildToolErrorResult("refs", "fs-error", message, {
-          path: p.path ?? searchPath,
-          details: { fsCode: err?.code, fsMessage: err?.message },
-        });
-      }
-
-      try {
-        const references = await readseekRefs(searchPath, p.name, {
-          scope: p.scope,
-          line: p.line,
-          column: p.column,
-          language: p.lang,
-          cached: p.cached,
-          others: p.others,
-          ignored: p.ignored,
-          signal,
-        });
-        const files = groupReferences(references, ctx.cwd);
-        const builtOutput = buildRefsOutput({ name: p.name, files });
-        for (const file of files) {
-          options.onFileAnchored?.(file.path);
-        }
-        return {
-          content: [{ type: "text", text: builtOutput.text }],
-          details: { readseekValue: builtOutput.readseekValue },
-        };
-      } catch (err: any) {
-        const message = String(err?.message || err);
-        const missingReadseek = err?.code === "ENOENT" || /Cannot find package|Cannot find module|no such file/i.test(message);
-        return buildToolErrorResult(
-          "refs",
-          missingReadseek ? "readseek-not-installed" : "readseek-execution-error",
-          message,
-          missingReadseek ? { hint: "Run npm install to install @jarkkojs/readseek." } : {},
-        );
-      }
+      return executeRefs({ params, signal, cwd: ctx.cwd, onFileAnchored: options.onFileAnchored });
     },
     renderCall(args: any, theme: any, ...rest: any[]) {
       const context = rest[0] ?? {};

@@ -56,6 +56,16 @@ interface SgToolOptions {
   onFileAnchored?: (absolutePath: string) => void;
 }
 
+/**
+ * Inputs for executing the structural search tool without registering it.
+ */
+export interface ExecuteSgOptions {
+  params: unknown;
+  signal: AbortSignal | undefined;
+  cwd: string;
+  onFileAnchored?: (absolutePath: string) => void;
+}
+
 function readseekLineFromSearch(line: ReadseekHashline): ReadseekLine {
   return buildReadseekLineWithHash(line.line, line.hash, line.text);
 }
@@ -87,6 +97,112 @@ function readseekLanguageForPath(language: string | undefined, searchPath: strin
   return language;
 }
 
+/**
+ * Executes structural search and returns readseek-anchored matches.
+ */
+export async function executeSg(opts: ExecuteSgOptions): Promise<any> {
+  const { params, signal, cwd, onFileAnchored } = opts;
+  const p = params as SgParams;
+  if (p.ignored && !p.others) {
+    const message = "Error: search parameter 'ignored' requires 'others'";
+    return buildToolErrorResult("search", "invalid-parameter", message);
+  }
+  const searchPath = resolveToCwd(p.path ?? ".", cwd);
+  let searchPathIsFile = false;
+
+  try {
+    const stat = await fsStat(searchPath);
+    searchPathIsFile = stat.isFile();
+  } catch (err: any) {
+    if (err?.code === "ENOENT") {
+      const message = `Error: path '${p.path ?? "."}' does not exist`;
+      return buildToolErrorResult("search", "path-not-found", message, { path: p.path ?? searchPath });
+    }
+    if (err?.code === "EACCES" || err?.code === "EPERM") {
+      const message = `Error: permission denied for path '${p.path ?? "."}'`;
+      return buildToolErrorResult("search", "permission-denied", message, { path: p.path ?? searchPath });
+    }
+    const message = `Error: could not access path '${p.path ?? "."}': ${err?.message ?? String(err)}`;
+    return buildToolErrorResult("search", "fs-error", message, { path: p.path ?? searchPath, details: { fsCode: err?.code, fsMessage: err?.message } });
+  }
+
+  try {
+    const effectiveLang = readseekLanguageForPath(p.lang, searchPath, searchPathIsFile);
+    const results = await readseekSearch(searchPath, p.pattern, {
+      language: effectiveLang,
+      cached: p.cached,
+      others: p.others,
+      ignored: p.ignored,
+      signal,
+    });
+    if (results.length === 0) {
+      const emptyOutput = buildSgOutput({ pattern: p.pattern, files: [] });
+      return {
+        content: [{ type: "text", text: emptyOutput.text }],
+        details: {
+          readseekValue: emptyOutput.readseekValue,
+        },
+      };
+    }
+
+    const readseekFiles: Array<{
+      displayPath: string;
+      path: string;
+      ranges: SgRange[];
+      lines: ReadseekLine[];
+      symbols?: SgEnclosingSymbol[];
+    }> = [];
+
+    for (const result of results) {
+      const abs = path.isAbsolute(result.file) ? result.file : path.resolve(cwd, result.file);
+      const display = path.relative(cwd, abs) || abs;
+      const ranges = result.matches.map((match) => ({ startLine: match.start_line, endLine: match.end_line }));
+      const mergedRanges = mergeRanges(ranges);
+      const lines = linesFromSearchResult(result, mergedRanges);
+      if (lines.length === 0) continue;
+      readseekFiles.push({
+        displayPath: display,
+        path: abs,
+        ranges: mergedRanges.map((range) => ({ ...range })),
+        lines,
+      });
+    }
+
+    if (readseekFiles.length === 0) {
+      const emptyOutput = buildSgOutput({ pattern: p.pattern, files: [] });
+      return {
+        content: [{ type: "text", text: emptyOutput.text }],
+        details: {
+          readseekValue: emptyOutput.readseekValue,
+        },
+      };
+    }
+
+    const builtOutput = buildSgOutput({
+      pattern: p.pattern,
+      files: readseekFiles,
+    });
+    for (const readseekFile of readseekFiles) {
+      onFileAnchored?.(readseekFile.path);
+    }
+    return {
+      content: [{ type: "text", text: builtOutput.text }],
+      details: {
+        readseekValue: builtOutput.readseekValue,
+      },
+    };
+  } catch (err: any) {
+    const message = String(err?.message || err);
+    const missingReadseek = err?.code === "ENOENT" || /Cannot find package|Cannot find module|no such file/i.test(message);
+    return buildToolErrorResult(
+      "search",
+      missingReadseek ? "readseek-not-installed" : "readseek-execution-error",
+      message,
+      missingReadseek ? { hint: "Run npm install to install @jarkkojs/readseek." } : {},
+    );
+  }
+}
+
 export function registerSgTool(pi: ExtensionAPI, options: SgToolOptions = {}) {
   const toolConfig = {
     callable: true,
@@ -113,105 +229,7 @@ export function registerSgTool(pi: ExtensionAPI, options: SgToolOptions = {}) {
     }),
     ptc: toolConfig,
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      const p = params as SgParams;
-      if (p.ignored && !p.others) {
-        const message = "Error: search parameter 'ignored' requires 'others'";
-        return buildToolErrorResult("search", "invalid-parameter", message);
-      }
-      const searchPath = resolveToCwd(p.path ?? ".", ctx.cwd);
-      let searchPathIsFile = false;
-
-      try {
-        const stat = await fsStat(searchPath);
-        searchPathIsFile = stat.isFile();
-      } catch (err: any) {
-        if (err?.code === "ENOENT") {
-          const message = `Error: path '${p.path ?? "."}' does not exist`;
-          return buildToolErrorResult("search", "path-not-found", message, { path: p.path ?? searchPath });
-        }
-        if (err?.code === "EACCES" || err?.code === "EPERM") {
-          const message = `Error: permission denied for path '${p.path ?? "."}'`;
-          return buildToolErrorResult("search", "permission-denied", message, { path: p.path ?? searchPath });
-        }
-        const message = `Error: could not access path '${p.path ?? "."}': ${err?.message ?? String(err)}`;
-        return buildToolErrorResult("search", "fs-error", message, { path: p.path ?? searchPath, details: { fsCode: err?.code, fsMessage: err?.message } });
-      }
-
-      try {
-        const effectiveLang = readseekLanguageForPath(p.lang, searchPath, searchPathIsFile);
-        const results = await readseekSearch(searchPath, p.pattern, {
-          language: effectiveLang,
-          cached: p.cached,
-          others: p.others,
-          ignored: p.ignored,
-          signal,
-        });
-        if (results.length === 0) {
-          const emptyOutput = buildSgOutput({ pattern: p.pattern, files: [] });
-          return {
-            content: [{ type: "text", text: emptyOutput.text }],
-            details: {
-              readseekValue: emptyOutput.readseekValue,
-            },
-          };
-        }
-
-        const readseekFiles: Array<{
-          displayPath: string;
-          path: string;
-          ranges: SgRange[];
-          lines: ReadseekLine[];
-          symbols?: SgEnclosingSymbol[];
-        }> = [];
-
-        for (const result of results) {
-          const abs = path.isAbsolute(result.file) ? result.file : path.resolve(ctx.cwd, result.file);
-          const display = path.relative(ctx.cwd, abs) || abs;
-          const ranges = result.matches.map((match) => ({ startLine: match.start_line, endLine: match.end_line }));
-          const mergedRanges = mergeRanges(ranges);
-          const lines = linesFromSearchResult(result, mergedRanges);
-          if (lines.length === 0) continue;
-          readseekFiles.push({
-            displayPath: display,
-            path: abs,
-            ranges: mergedRanges.map((range) => ({ ...range })),
-            lines,
-          });
-        }
-
-        if (readseekFiles.length === 0) {
-          const emptyOutput = buildSgOutput({ pattern: p.pattern, files: [] });
-          return {
-            content: [{ type: "text", text: emptyOutput.text }],
-            details: {
-              readseekValue: emptyOutput.readseekValue,
-            },
-          };
-        }
-
-        const builtOutput = buildSgOutput({
-          pattern: p.pattern,
-          files: readseekFiles,
-        });
-        for (const readseekFile of readseekFiles) {
-          options.onFileAnchored?.(readseekFile.path);
-        }
-        return {
-          content: [{ type: "text", text: builtOutput.text }],
-          details: {
-            readseekValue: builtOutput.readseekValue,
-          },
-        };
-      } catch (err: any) {
-        const message = String(err?.message || err);
-        const missingReadseek = err?.code === "ENOENT" || /Cannot find package|Cannot find module|no such file/i.test(message);
-        return buildToolErrorResult(
-          "search",
-          missingReadseek ? "readseek-not-installed" : "readseek-execution-error",
-          message,
-          missingReadseek ? { hint: "Run npm install to install @jarkkojs/readseek." } : {},
-        );
-      }
+      return executeSg({ params, signal, cwd: ctx.cwd, onFileAnchored: options.onFileAnchored });
     },
     renderCall(args: any, theme: any, ...rest: any[]) {
       const context = rest[0] ?? {};
