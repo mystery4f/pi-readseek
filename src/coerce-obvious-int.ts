@@ -1,8 +1,22 @@
 const BASE10_INT_RE = /^-?\d+$/;
+const MIN_SAFE_INTEGER = BigInt(Number.MIN_SAFE_INTEGER);
+const MAX_SAFE_INTEGER = BigInt(Number.MAX_SAFE_INTEGER);
 
 type CoercedIntResult =
   | { ok: true; value: number | undefined }
   | { ok: false; message: string };
+
+function formatReceived(value: unknown): string {
+  if (typeof value === "number" || typeof value === "bigint") return String(value);
+  return JSON.stringify(value) ?? String(value);
+}
+
+function invalidInteger(value: unknown, name: string): CoercedIntResult {
+  return {
+    ok: false,
+    message: `Invalid ${name}: expected a safe base-10 integer, received ${formatReceived(value)}.`,
+  };
+}
 
 export function coerceObviousBase10Int(value: unknown, name: string): CoercedIntResult {
   if (value === undefined) {
@@ -10,21 +24,18 @@ export function coerceObviousBase10Int(value: unknown, name: string): CoercedInt
   }
 
   if (typeof value === "number") {
-    if (Number.isInteger(value)) {
+    if (Number.isSafeInteger(value)) {
       return { ok: true, value };
     }
-    return {
-      ok: false,
-      message: `Invalid ${name}: expected a base-10 integer, received ${value}.`,
-    };
+    return invalidInteger(value, name);
   }
 
   if (typeof value === "string" && BASE10_INT_RE.test(value)) {
-    return { ok: true, value: Number.parseInt(value, 10) };
+    const parsed = BigInt(value);
+    if (parsed >= MIN_SAFE_INTEGER && parsed <= MAX_SAFE_INTEGER) {
+      return { ok: true, value: Number(parsed) };
+    }
   }
 
-  return {
-    ok: false,
-    message: `Invalid ${name}: expected a base-10 integer, received ${JSON.stringify(value)}.`,
-  };
+  return invalidInteger(value, name);
 }
