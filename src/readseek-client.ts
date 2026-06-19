@@ -375,15 +375,7 @@ function parseReadOutput(value: unknown): ReadseekReadOutput {
 		file_hash: requireString(output.file_hash, "file_hash"),
 		start_line: requireNumber(output.start_line, "start_line"),
 		end_line: requireNumber(output.end_line, "end_line"),
-		hashlines: hashlines.map((line) => {
-			if (!line || typeof line !== "object") throw new Error("invalid readseek hashline");
-			const item = line as Record<string, unknown>;
-			return {
-				line: requireNumber(item.line, "hashline.line"),
-				hash: requireString(item.hash, "hashline.hash"),
-				text: requireString(item.text, "hashline.text"),
-			};
-		}),
+		hashlines: hashlines.map((line) => parseHashline(line, "hashline")),
 	};
 }
 
@@ -413,17 +405,19 @@ function parseMapOutput(value: unknown): ReadseekMapOutput {
 	};
 }
 
+function parseHashline(value: unknown, field: string): ReadseekHashline {
+	if (!value || typeof value !== "object") throw new Error(`invalid readseek ${field}`);
+	const item = value as Record<string, unknown>;
+	return {
+		line: requireNumber(item.line, `${field}.line`),
+		hash: requireString(item.hash, `${field}.hash`),
+		text: requireString(item.text, `${field}.text`),
+	};
+}
+
 function parseSearchHashlines(value: unknown, field: string): ReadseekHashline[] {
 	if (!Array.isArray(value)) throw new Error(`invalid readseek ${field}`);
-	return value.map((line) => {
-		if (!line || typeof line !== "object") throw new Error(`invalid readseek ${field}`);
-		const item = line as Record<string, unknown>;
-		return {
-			line: requireNumber(item.line, `${field}.line`),
-			hash: requireString(item.hash, `${field}.hash`),
-			text: requireString(item.text, `${field}.text`),
-		};
-	});
+	return value.map((line) => parseHashline(line, field));
 }
 
 function parseSearchOutput(value: unknown): ReadseekSearchOutput {
@@ -444,7 +438,7 @@ function parseSearchOutput(value: unknown): ReadseekSearchOutput {
 					const item = match as Record<string, unknown>;
 					if (!Array.isArray(item.captures)) throw new Error("invalid readseek search captures");
 					return {
-						pattern_index: requireNumber(item.pattern_index, "search.match.pattern_index"),
+						pattern_index: item.pattern_index === undefined ? 0 : requireNumber(item.pattern_index, "search.match.pattern_index"),
 						start_line: requireNumber(item.start_line, "search.match.start_line"),
 						end_line: requireNumber(item.end_line, "search.match.end_line"),
 						start_hash: requireString(item.start_hash, "search.match.start_hash"),
@@ -471,7 +465,7 @@ function parseSearchOutput(value: unknown): ReadseekSearchOutput {
 
 export async function readseekRead(filePath: string, startLine?: number, endLine?: number): Promise<ReadseekReadOutput> {
 	const args = ["read", filePath];
-	if (startLine !== undefined) args.push("--offset", String(startLine));
+	if (startLine !== undefined) args.push("--start", String(startLine));
 	if (endLine !== undefined) args.push("--end", String(endLine));
 	return parseReadOutput(await runReadseek(args));
 }

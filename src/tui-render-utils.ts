@@ -80,15 +80,6 @@ export function clampLinesToWidth(lines: string[], width: number | undefined): s
   return lines.map((line) => clampLineToWidth(line, width));
 }
 
-export function wrapLinesToWidth(lines: string[], width: number | undefined): string[] {
-  if (width === undefined || width === null) return lines;
-  const normalized = normalizeWidth(width);
-  return lines.flatMap((line) => {
-    if (visibleWidth(line) <= normalized) return [line];
-    return wrapTextWithAnsi(line, normalized).map((wrapped) => clampLineToWidth(wrapped, normalized));
-  });
-}
-
 export interface WrapWithHangingIndentOptions {
   /** Optional transform applied to each produced line (e.g. theme tinting). */
   tint?: (text: string) => string;

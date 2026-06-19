@@ -36,14 +36,6 @@ function pendingPreviewLines(summary: string, preview: PendingDiffPreviewResult 
 	return { lines: [summary, headerLine], diffData: expanded ? diffData : undefined, headerLabel: preview.data.headerLabel };
 }
 
-export function wrapWriteError(err: any, path: string): Error {
-	const code = err?.code;
-	if (code === "EACCES" || code === "EPERM") {
-		return new Error(`Permission denied: ${path}`);
-	}
-	return new Error(`Failed to write file: ${path}`);
-}
-
 
 const hashlineEditItemSchema = Type.Union([
 	Type.Object({ set_line: Type.Object({ anchor: Type.String(), new_text: Type.String() }) }, { additionalProperties: true }),
@@ -269,16 +261,16 @@ export async function executeEdit(opts: ExecuteEditOptions): Promise<any> {
 		}
 	}
 	let preAnchorContent = originalNormalized;
-	// AC 26: reject anchored edits that target a line inside any replace_symbol
+	// reject anchored edits that target a line inside any replace_symbol
 	// pre-replace range. Resolve each target against the ORIGINAL content so the
 	// user-provided anchor line numbers (which reference the file as read) are
 	// compared against the pre-replace coordinates.
 	//
-	// F2: surface replace_symbol symbol-resolution errors (not-found, ambiguous)
-	// BEFORE the AC 26 overlap check and before any write (C1 preserved).
+	// surface replace_symbol symbol-resolution errors (not-found, ambiguous)
+	// before the overlap check and before any write.
 	// Error-precedence order: replace_symbol resolution > anchor-overlap > anchored-edit.
 	//
-	// AC 4: store successful probe results and reuse them in the apply loop so
+	// store successful probe results and reuse them in the apply loop so
 	// readseekMapContent is invoked at most once per replace_symbol edit.
 	const replaceSymbolRanges: { start: number; end: number }[] = [];
 	const rsProbeResults: { type: "ok"; content: string; replacement: string; warnings: string[]; range: { start: number; end: number } }[] = [];
@@ -290,7 +282,7 @@ export async function executeEdit(opts: ExecuteEditOptions): Promise<any> {
 			newBody: rs.replace_symbol.new_body,
 		});
 		if (probe.type !== "ok") {
-			// F2: symbol-resolution errors surface before AC 26 overlap check.
+			// symbol-resolution errors surface before the overlap check.
 			return buildEditError(absolutePath, "invalid-edit-variant", probe.message);
 		}
 		rsProbeResults.push(probe);
@@ -349,7 +341,7 @@ export async function executeEdit(opts: ExecuteEditOptions): Promise<any> {
 			}
 		}
 	}
-	// Apply pass: reuse all probe results (AC 4). The probe pass resolved every
+	// Apply pass: reuse all probe results. The probe pass resolved every
 	// replace_symbol against originalNormalized; apply those replacements in
 	// reverse source order so original line ranges stay valid and no second
 	// replaceSymbol/readseekMapContent call is needed.
@@ -445,7 +437,7 @@ export async function executeEdit(opts: ExecuteEditOptions): Promise<any> {
 		if (regression) {
 			const lines = regression.errorLines.join(", ");
 			const message = `syntax-regression: lines ${lines}`;
-			// Task 7 (AC 12): block mode aborts with syntax-regression code; file is left untouched.
+			// block mode aborts with syntax-regression code; file is left untouched.
 			if (syntaxMode === "block") {
 				return buildEditError(absolutePath, "syntax-regression", message);
 			}

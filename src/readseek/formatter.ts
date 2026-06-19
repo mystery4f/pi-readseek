@@ -234,22 +234,6 @@ export function formatFileMap(map: FileMap, level?: DetailLevel): string {
 }
 
 /**
- * Get the appropriate detail level for a map based on size.
- */
-export function getDetailLevelForSize(currentSize: number): DetailLevel {
-  if (currentSize <= THRESHOLDS.FULL_TARGET_BYTES) {
-    return DetailLevel.Full;
-  }
-  if (currentSize <= THRESHOLDS.COMPACT_TARGET_BYTES) {
-    return DetailLevel.Compact;
-  }
-  if (currentSize <= THRESHOLDS.MAX_MAP_BYTES) {
-    return DetailLevel.Minimal;
-  }
-  return DetailLevel.Outline;
-}
-
-/**
  * Reduce detail level of a file map.
  */
 export function reduceToLevel(map: FileMap, level: DetailLevel): FileMap {

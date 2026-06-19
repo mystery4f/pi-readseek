@@ -136,7 +136,7 @@ export function findSymbol(map: FileMap, query: string): SymbolLookupResult {
     } else {
       pool = allSymbols.filter((c) => c.symbol.name === namePart);
     }
-    // AC 16 + AC 17: drop candidates without usable startLine. If that empties
+    // drop candidates without usable startLine. If that empties
     // the pool entirely, surface any same-leaf-name decls elsewhere in the file
     // so the user can see real candidate lines.
     pool = pool.filter((c) => Number.isFinite(c.symbol.startLine) && c.symbol.startLine > 0);

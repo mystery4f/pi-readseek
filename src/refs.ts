@@ -69,6 +69,14 @@ function groupReferences(references: ReadseekReference[], cwd: string): RefsOutp
   return [...files.values()];
 }
 
+function isReadseekCursorValidationFailure(message: string): boolean {
+  return (
+    /line and column must be greater than zero/i.test(message) ||
+    /line \d+ not found/i.test(message) ||
+    /column \d+ exceeds maximum column \d+ for line \d+/i.test(message)
+  );
+}
+
 /**
  * Executes identifier reference lookup and returns readseek-anchored matches.
  */
@@ -125,6 +133,9 @@ export async function executeRefs(opts: ExecuteRefsOptions): Promise<any> {
     };
   } catch (err: any) {
     const failure = classifyReadseekFailure(err);
+    if (p.scope && isReadseekCursorValidationFailure(failure.message)) {
+      return buildToolErrorResult("refs", "invalid-parameter", failure.message);
+    }
     return buildToolErrorResult("refs", failure.code, failure.message, failure.hint ? { hint: failure.hint } : {});
   }
 }

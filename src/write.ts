@@ -365,37 +365,23 @@ export function registerWriteTool(pi: ExtensionAPI, options: WriteToolOptions = 
           // Lift binary-content signal into a fatal readseekValue.error envelope so
           // downstream consumers get the same taxonomy shape as every other tool.
           // The existing ReadseekWarning entry is preserved on readseekValue.warnings for
-          // backward compatibility (see AC 12 — warnings namespace alignment).
-          const binaryWarning = result.readseekValue.warnings.find((w) => w.code === "binary-content");
-          if (binaryWarning) {
-            return {
-              content: [{ type: "text" as const, text: result.text }],
-              isError: true,
-              details: {
-                readseekValue: {
-                  ...result.readseekValue,
-                  ok: false,
-                  error: buildReadseekError("binary-content", binaryWarning.message),
+          // backward compatibility.
+          for (const code of ["binary-content", "bare-cr"] as const) {
+            const warning = result.readseekValue.warnings.find((w) => w.code === code);
+            if (warning) {
+              return {
+                content: [{ type: "text" as const, text: result.text }],
+                isError: true,
+                details: {
+                  readseekValue: {
+                    ...result.readseekValue,
+                    ok: false,
+                    error: buildReadseekError(code, warning.message),
+                  },
+                  warnings: result.warnings,
                 },
-                warnings: result.warnings,
-              },
-            };
-          }
-
-          const bareCrWarning = result.readseekValue.warnings.find((w) => w.code === "bare-cr");
-          if (bareCrWarning) {
-            return {
-              content: [{ type: "text" as const, text: result.text }],
-              isError: true,
-              details: {
-                readseekValue: {
-                  ...result.readseekValue,
-                  ok: false,
-                  error: buildReadseekError("bare-cr", bareCrWarning.message),
-                },
-                warnings: result.warnings,
-              },
-            };
+              };
+            }
           }
 
           return {
