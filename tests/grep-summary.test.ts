@@ -8,13 +8,10 @@ const { executeMock } = vi.hoisted(() => ({
 	executeMock: vi.fn(),
 }));
 
-vi.mock("@earendil-works/pi-coding-agent", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("@earendil-works/pi-coding-agent")>();
-	return {
-		...actual,
-		createGrepTool: () => ({ execute: executeMock }),
-	};
-});
+vi.mock("@earendil-works/pi-coding-agent", async () => ({
+	...(await import("./support/pi-coding-agent-mock.js")).createPiCodingAgentBaseMock(),
+	createGrepTool: () => ({ execute: executeMock }),
+}));
 
 const { executeGrep } = await import("../src/grep.js");
 

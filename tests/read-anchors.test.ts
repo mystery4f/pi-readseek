@@ -10,13 +10,10 @@ const { createReadToolExecuteMock, readseekMapMock, readseekReadMock } = vi.hois
 	readseekReadMock: vi.fn(),
 }));
 
-vi.mock("@earendil-works/pi-coding-agent", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("@earendil-works/pi-coding-agent")>();
-	return {
-		...actual,
-		createReadTool: () => ({ execute: createReadToolExecuteMock }),
-	};
-});
+vi.mock("@earendil-works/pi-coding-agent", async () => ({
+	...(await import("./support/pi-coding-agent-mock.js")).createPiCodingAgentBaseMock(),
+	createReadTool: () => ({ execute: createReadToolExecuteMock }),
+}));
 
 vi.mock("../src/readseek-client.js", () => ({
 	readseekMap: readseekMapMock,
