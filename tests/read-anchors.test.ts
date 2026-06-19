@@ -86,4 +86,46 @@ describe("executeRead anchor tracking", () => {
 			await rm(cwd, { recursive: true, force: true });
 		}
 	});
+
+	it.each(["map", "local"])("treats %s bundle without symbol as a map read", async (bundle) => {
+		const cwd = await mkdtemp(path.join(tmpdir(), "pi-readseek-read-"));
+		try {
+			const filePath = path.join(cwd, "file.ts");
+			await writeFile(filePath, "const value = 1;\n", "utf8");
+			readseekReadMock.mockResolvedValueOnce({
+				file: filePath,
+				language: "TypeScript",
+				line_count: 1,
+				file_hash: "filehash",
+				start_line: 1,
+				end_line: 1,
+				hashlines: [{ line: 1, hash: "aaa", text: "const value = 1;" }],
+			});
+			readseekMapMock.mockResolvedValueOnce({
+				path: filePath,
+				totalLines: 1,
+				totalBytes: 17,
+				language: "TypeScript",
+				symbols: [],
+				imports: [],
+				detailLevel: "full",
+			});
+
+			const result = await executeRead({
+				toolCallId: "test",
+				params: { path: "file.ts", bundle },
+				signal: undefined,
+				onUpdate: undefined,
+				cwd,
+			});
+
+			expect((result as { isError?: boolean }).isError).not.toBe(true);
+			expect((result.details as any).readseekValue.map).toEqual({
+				requested: true,
+				appended: true,
+			});
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
 });

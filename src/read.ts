@@ -40,7 +40,7 @@ interface ReadParams {
 	limit?: number | string;
 	symbol?: string;
 	map?: boolean;
-	bundle?: "local";
+	bundle?: string;
 }
 
 interface ReadToolOptions {
@@ -85,10 +85,16 @@ export async function executeRead(opts: ExecuteReadOptions): Promise<AgentToolRe
 		const message = `Invalid offset: expected a positive integer, received ${offset.value}.`;
 		return buildToolErrorResult("read", "invalid-offset", message, { path: rawParams.path });
 	}
+	const rawBundle = typeof rawParams.bundle === "string" ? rawParams.bundle.trim() : undefined;
+	const requestedMapViaBundle =
+		rawBundle === "map" ||
+		(rawBundle === "local" && rawParams.symbol === undefined && rawParams.map !== false);
 	const p = {
 		...rawParams,
 		offset: offset.value,
 		limit: limit.value,
+		map: rawParams.map === true || requestedMapViaBundle,
+		bundle: requestedMapViaBundle ? undefined : rawBundle,
 	};
 	if (rawParams.symbol !== undefined) {
 		const trimmedSymbol = typeof rawParams.symbol === "string" ? rawParams.symbol.trim() : "";
@@ -109,6 +115,10 @@ export async function executeRead(opts: ExecuteReadOptions): Promise<AgentToolRe
 	};
 
 	throwIfAborted(signal);
+	if (p.bundle !== undefined && p.bundle !== "local") {
+		const message = `Invalid bundle: expected "local", received ${JSON.stringify(p.bundle)}.`;
+		return buildToolErrorResult("read", "invalid-params-combo", message, { path: rawParams.path });
+	}
 	if (p.symbol && (p.offset !== undefined || p.limit !== undefined)) {
 		const message = "Cannot combine symbol with offset/limit. Use one or the other.";
 		return buildToolErrorResult("read", "invalid-params-combo", message, { path: rawParams.path });
