@@ -19,6 +19,19 @@ export interface EditOutputResult {
   patch: string;
   readseekValue: ReturnType<typeof buildReadseekEditResult>;
 }
+
+const EDIT_OPERATION_NAMES = ["set_line", "replace_lines", "insert_after", "replace"] as const;
+
+type EditOperationName = (typeof EDIT_OPERATION_NAMES)[number];
+
+type EditOperationWithNewText = {
+  new_text: string;
+};
+
+function hasNewText(value: unknown): value is EditOperationWithNewText {
+  return typeof value === "object" && value !== null && typeof (value as { new_text?: unknown }).new_text === "string";
+}
+
 function getVisibleDiffStats(diff: string): { added: number; removed: number } {
   const stats = parseDiffStats(diff);
   if (stats.added > 0 || stats.removed > 0) return stats;
@@ -49,10 +62,12 @@ function extractNewTextValues(edits: unknown[] | undefined): string[] {
   const values: string[] = [];
   for (const edit of edits ?? []) {
     if (!edit || typeof edit !== "object") continue;
-    if ("set_line" in edit && typeof (edit as any).set_line?.new_text === "string") values.push((edit as any).set_line.new_text);
-    if ("replace_lines" in edit && typeof (edit as any).replace_lines?.new_text === "string") values.push((edit as any).replace_lines.new_text);
-    if ("insert_after" in edit && typeof (edit as any).insert_after?.new_text === "string") values.push((edit as any).insert_after.new_text);
-    if ("replace" in edit && typeof (edit as any).replace?.new_text === "string") values.push((edit as any).replace.new_text);
+
+    const operations = edit as Partial<Record<EditOperationName, unknown>>;
+    for (const operationName of EDIT_OPERATION_NAMES) {
+      const operation = operations[operationName];
+      if (hasNewText(operation)) values.push(operation.new_text);
+    }
   }
   return values;
 }
@@ -62,10 +77,13 @@ function formatWhitespaceOnlyWarning(semanticSummary: SemanticSummary | undefine
   return "⚠ Edit classified as whitespace-only — if you intended a behavior change, re-read to verify.";
 }
 function formatSemanticSuffix(semanticSummary: SemanticSummary | undefined): string {
-  const movedBlocks = semanticSummary?.movedBlocks ?? 0;
+  if (!semanticSummary) return "";
+
+  const movedBlocks = semanticSummary.movedBlocks ?? 0;
   if (movedBlocks <= 0) return "";
+
   const blockWord = movedBlocks === 1 ? "block" : "blocks";
-  return ` [semantic: ${semanticSummary!.classification}, ${movedBlocks} ${blockWord} moved]`;
+  return ` [semantic: ${semanticSummary.classification}, ${movedBlocks} ${blockWord} moved]`;
 }
 function formatReplaceHint(edits: unknown[] | undefined, noopEdits: unknown[]): string | undefined {
   if ((noopEdits ?? []).length > 0) return undefined;
