@@ -1,8 +1,11 @@
+import { readFile as fsReadFile, stat as fsStat } from "fs/promises";
+import path from "path";
+
 import type { ExtensionAPI, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
 import { createGrepTool } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
-import { readFile as fsReadFile, stat as fsStat } from "fs/promises";
-import path from "path";
+import { Text } from "@earendil-works/pi-tui";
+
 import { defineToolPromptMetadata } from "./tool-prompt-metadata.js";
 import { normalizeToLF, stripBom, hasBareCarriageReturn } from "./edit-diff.js";
 import { looksLikeBinary } from "./binary-detect.js";
@@ -14,7 +17,6 @@ import { getOrGenerateMap } from "./map-cache.js";
 import { scopeGrepGroupsToSymbols } from "./grep-symbol-scope.js";
 import { resolveToCwd } from "./path-utils.js";
 import { throwIfAborted } from "./runtime.js";
-import { Text } from "@earendil-works/pi-tui";
 import { formatGrepCallText, formatGrepResultText } from "./grep-render-helpers.js";
 import { coerceObviousBase10Int } from "./coerce-obvious-int.js";
 import { clampLineToWidth, clampLinesToWidth, linkToolPath, renderErrorResult, renderPendingResult, renderToolLabel, resolveRenderResultContext, summaryLine } from "./tui-render-utils.js";

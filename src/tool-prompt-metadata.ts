@@ -1,5 +1,6 @@
-import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize } from "@earendil-works/pi-coding-agent";
 import { readFileSync } from "node:fs";
+
+import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize } from "@earendil-works/pi-coding-agent";
 
 const COMPACT_DESCRIPTIONS: Record<string, string> = {
   "read.md": "Read text files/images by path; text has LINE:HASH anchors, images return attachments.",

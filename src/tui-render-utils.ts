@@ -1,6 +1,8 @@
-import { getCapabilities, hyperlink, Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { relative } from "node:path";
 import { pathToFileURL } from "node:url";
+
+import { getCapabilities, hyperlink, Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+
 import { resolveToCwd } from "./path-utils.js";
 
 export const SUMMARY_PREFIX = "↳";

@@ -1,3 +1,5 @@
+import { readFile as fsReadFile } from "fs/promises";
+
 import type { ExtensionAPI, ToolRenderResultOptions, AgentToolResult } from "@earendil-works/pi-coding-agent";
 import {
 	createReadTool,
@@ -6,8 +8,9 @@ import {
 	DEFAULT_MAX_LINES,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
+import { Text } from "@earendil-works/pi-tui";
+
 import { defineToolPromptMetadata } from "./tool-prompt-metadata.js";
-import { readFile as fsReadFile } from "fs/promises";
 import { normalizeToLF, stripBom, hasBareCarriageReturn } from "./edit-diff.js";
 import { ensureHashInit, escapeControlCharsForDisplay } from "./hashline.js";
 import { buildReadseekWarning, buildToolErrorResult, renderReadseekLines, type ReadseekLine, type ReadseekWarning } from "./readseek-value.js";
@@ -24,7 +27,6 @@ import { buildReadOutput } from "./read-output.js";
 import { buildLocalBundle } from "./read-local-bundle.js";
 import { coerceObviousBase10Int } from "./coerce-obvious-int.js";
 import { readseekRead } from "./readseek-client.js";
-import { Text } from "@earendil-works/pi-tui";
 import { formatReadCallText, formatReadResultText } from "./read-render-helpers.js";
 import { clampLineToWidth, clampLinesToWidth, linkToolPath, renderPendingResult, renderToolLabel, resolveRenderResultContext, summaryLine, wrapReadHashlinesForWidth } from "./tui-render-utils.js";
 import type { FileAnchoredCallback } from "./tool-types.js";

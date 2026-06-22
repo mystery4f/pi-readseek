@@ -1,9 +1,12 @@
+import { readFile as fsReadFile, writeFile as fsWriteFile } from "fs/promises";
+
+import { createPatch } from "diff";
 import { withFileMutationQueue, type ExtensionAPI, type EditToolDetails, type ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import type { Static } from "@sinclair/typebox";
+import { Text } from "@earendil-works/pi-tui";
+
 import { defineToolPromptMetadata } from "./tool-prompt-metadata.js";
-import { readFile as fsReadFile, writeFile as fsWriteFile } from "fs/promises";
-import { createPatch } from "diff";
 import { detectLineEnding, generateCompactOrFullDiff, normalizeToLF, replaceText, restoreLineEndings, stripBom } from "./edit-diff.js";
 import { HashlineMismatchError, applyHashlineEdits, computeLineHash, ensureHashInit, parseLineRef, type HashlineEditItem, escapeControlCharsForDisplay } from "./hashline.js";
 import { resolveToCwd } from "./path-utils.js";
@@ -13,7 +16,6 @@ import { buildEditOutput } from "./edit-output.js";
 import { classifyEdit, isDifftAvailable, runDifftastic } from "./edit-classify.js";
 import type { SemanticSummary } from "./readseek-value.js";
 import { buildReadseekError } from "./readseek-value.js";
-import { Text } from "@earendil-works/pi-tui";
 import { countEditTypes, formatEditCallText, formatEditResultText } from "./edit-render-helpers.js";
 import { validateSyntaxRegression } from "./edit-syntax-validate.js";
 import { resolveSyntaxValidateMode, type SyntaxValidateOptions } from "./syntax-validate-mode.js";

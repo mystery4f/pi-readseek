@@ -1,8 +1,10 @@
+import path from "node:path";
+import { stat as fsStat } from "node:fs/promises";
+
 import type { ExtensionAPI, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "@sinclair/typebox";
-import path from "node:path";
-import { stat as fsStat } from "node:fs/promises";
+
 import { defineToolPromptMetadata } from "./tool-prompt-metadata.js";
 import { buildReadseekLineWithHash, buildToolErrorResult, type ReadseekLine } from "./readseek-value.js";
 import { resolveToCwd } from "./path-utils.js";

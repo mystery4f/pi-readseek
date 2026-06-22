@@ -1,8 +1,10 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, relative } from "node:path";
+
 import { withFileMutationQueue, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "@sinclair/typebox";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, relative } from "node:path";
+
 import { resolveToCwd } from "./path-utils.js";
 import { ensureHashInit, formatHashlineDisplay } from "./hashline.js";
 import { buildReadseekError, buildReadseekLine, buildReadseekWarning, type ReadseekLine, type ReadseekWarning } from "./readseek-value.js";
