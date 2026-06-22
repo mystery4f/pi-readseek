@@ -254,7 +254,7 @@ export async function executeEdit(opts: ExecuteEditOptions): Promise<any> {
 				const parsed = parseLineRef(ref);
 				if (parsed.line >= 1 && parsed.line <= origLines.length) {
 					const lineContent = origLines[parsed.line - 1];
-					const hash = computeLineHash(parsed.line, lineContent);
+					const hash = computeLineHash(lineContent);
 					anchorSnapshots.set(ref, `${parsed.line}:${hash}|${escapeControlCharsForDisplay(lineContent)}`);
 				}
 			} catch {

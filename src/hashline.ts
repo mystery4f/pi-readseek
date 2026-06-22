@@ -100,7 +100,7 @@ function xxh32(input: string): number {
 	return state.h32Fn(input, 0) >>> 0;
 }
 
-export function computeLineHash(_idx: number, line: string): string {
+export function computeLineHash(line: string): string {
 	if (line.endsWith("\r")) line = line.slice(0, -1);
 	line = line.replace(/\s+/g, "");
 	return DICT[xxh32(line) % HASH_MOD];
@@ -115,7 +115,7 @@ export function escapeControlCharsForDisplay(text: string): string {
 }
 
 export function formatHashlineDisplay(lineNumber: number, content: string): string {
-	return `${lineNumber}:${computeLineHash(lineNumber, content)}|${escapeControlCharsForDisplay(content)}`;
+	return `${lineNumber}:${computeLineHash(content)}|${escapeControlCharsForDisplay(content)}`;
 }
 
 export function parseLineRef(ref: string): { line: number; hash: string; content?: string } {
@@ -167,7 +167,7 @@ function findSimilarLines(
 
 	candidates.sort((a, b) => b.score - a.score);
 	return candidates.slice(0, maxSuggestions).map((c) => {
-		const hash = computeLineHash(c.line, c.content);
+		const hash = computeLineHash(c.content);
 		return `  ${c.line}:${hash}|${escapeControlCharsForDisplay(c.content)}`;
 	});
 }
@@ -180,7 +180,7 @@ function formatMismatchError(
 	for (const m of mismatches) mismatchSet.set(m.line, m);
 	const updatedAnchors: ReadseekLine[] = mismatches.map((m) => {
 		const raw = fileLines[m.line - 1] ?? "";
-		const hash = computeLineHash(m.line, raw);
+		const hash = computeLineHash(raw);
 		return {
 			line: m.line,
 			hash,
@@ -206,7 +206,7 @@ function formatMismatchError(
 		if (prev !== -1 && num > prev + 1) out.push("    ...");
 		prev = num;
 		const content = fileLines[num - 1];
-		const hash = computeLineHash(num, content);
+		const hash = computeLineHash(content);
 		const prefix = `${num}:${hash}`;
 		out.push(
 			mismatchSet.has(num)
@@ -427,7 +427,7 @@ export function applyHashlineEdits(
 	for (let i = 0; i < fileLines.length; i++) {
 		throwIfAborted(signal);
 		const lineNumber = i + 1;
-		const h = computeLineHash(lineNumber, fileLines[i]);
+		const h = computeLineHash(fileLines[i]);
 		lineHashes.push(h);
 		const lines = hashToLines.get(h);
 		if (lines) lines.push(lineNumber);
@@ -487,7 +487,7 @@ export function applyHashlineEdits(
 			}
 			if (fuzzyHits.length === 1) {
 				const hit = fuzzyHits[0];
-				const newHash = computeLineHash(hit.line, fileLines[hit.line - 1]);
+				const newHash = computeLineHash(fileLines[hit.line - 1]);
 				ref.line = hit.line;
 				ref.hash = newHash;
 				relocationNotes.add(

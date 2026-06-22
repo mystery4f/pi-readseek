@@ -71,7 +71,7 @@ export function buildReadseekLineWithHash(line: number, hash: string, raw: strin
 }
 
 export function buildReadseekLine(line: number, raw: string): ReadseekLine {
-  return buildReadseekLineWithHash(line, computeLineHash(line, raw), raw);
+  return buildReadseekLineWithHash(line, computeLineHash(raw), raw);
 }
 
 export function buildReadseekLines(startLine: number, rawLines: string[]): ReadseekLine[] {

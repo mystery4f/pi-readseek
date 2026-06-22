@@ -315,8 +315,8 @@ export function generateCompactOrFullDiff(
 			const lineNum = changedIndex + 1;
 			const oldLine = oldLines[changedIndex] ?? "";
 			const newLine = newLines[changedIndex] ?? "";
-			const oldHash = computeLineHash(lineNum, oldLine);
-			const newHash = computeLineHash(lineNum, newLine);
+			const oldHash = computeLineHash(oldLine);
+			const newHash = computeLineHash(newLine);
 			return {
 				diff: `${lineNum}:${oldHash}|${oldLine} → ${lineNum}:${newHash}|${newLine}`,
 				firstChangedLine: lineNum,
@@ -347,7 +347,7 @@ export function generateCompactOrFullDiff(
 		if (!failed && deletedIndex !== -1 && j === newLines.length) {
 			const lineNum = deletedIndex + 1;
 			const oldLine = oldLines[deletedIndex] ?? "";
-			const oldHash = computeLineHash(lineNum, oldLine);
+			const oldHash = computeLineHash(oldLine);
 			return {
 				diff: `${lineNum}:${oldHash}|${oldLine} → [deleted]`,
 				firstChangedLine: lineNum,
