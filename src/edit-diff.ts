@@ -14,6 +14,7 @@ export function detectLineEnding(content: string): "\r\n" | "\n" {
 			lf++;
 		}
 	}
+	if (lf === 0 && crlf === 0) return "\n";
 	if (lf === 0) return "\r\n";
 	if (crlf === 0) return "\n";
 	return crlf > lf ? "\r\n" : "\n";
