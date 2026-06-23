@@ -29,11 +29,15 @@ function getMapCacheState(): MapCacheGlobalState {
 	globalObject[MAP_CACHE_STATE_KEY] = state;
 	return state;
 }
+/** Move an existing entry to the most-recently-used position (Map insertion-order tail). */
+function touchMapEntry<K, V>(map: Map<K, V>, key: K, value: V): void {
+	map.delete(key);
+	map.set(key, value);
+}
 
 function rememberInMemory(absPath: string, entry: CacheEntry): void {
 	const state = getMapCacheState();
-	if (state.cache.has(absPath)) state.cache.delete(absPath);
-	state.cache.set(absPath, entry);
+	touchMapEntry(state.cache, absPath, entry);
 	if (state.cache.size > state.maxSize) {
 		const oldestKey = state.cache.keys().next().value;
 		if (oldestKey !== undefined) state.cache.delete(oldestKey);
@@ -55,8 +59,7 @@ export async function getOrGenerateMap(absPath: string): Promise<FileMap | null>
 		const state = getMapCacheState();
 		const cached = state.cache.get(absPath);
 		if (cached && cached.mtimeMs === mtimeMs) {
-			state.cache.delete(absPath);
-			state.cache.set(absPath, cached);
+			touchMapEntry(state.cache, absPath, cached);
 			return cached.map;
 		}
 		const inflight = state.inflight.get(absPath);
