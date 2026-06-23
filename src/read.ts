@@ -91,7 +91,7 @@ export async function executeRead(opts: ExecuteReadOptions): Promise<AgentToolRe
 	const rawBundle = typeof rawParams.bundle === "string" ? rawParams.bundle.trim() : undefined;
 	const requestedMapViaBundle =
 		rawBundle === "map" ||
-		(rawBundle === "local" && rawParams.symbol === undefined && rawParams.map !== false);
+		(rawBundle === "local" && rawParams.symbol === undefined && (rawParams.map ?? true));
 	const p = {
 		...rawParams,
 		offset: offset.value,
