@@ -15,7 +15,7 @@ const POSITIVE_BASE10_INT = /^[1-9][0-9]*$/;
  *
  * Returns `undefined` on rejection; never throws.
  */
-export function parsePositiveBase10Int(raw: string | undefined | null): number | undefined {
+function parsePositiveBase10Int(raw: string | undefined | null): number | undefined {
 	if (raw === undefined || raw === null) return undefined;
 	const trimmed = String(raw).trim();
 	if (!POSITIVE_BASE10_INT.test(trimmed)) return undefined;

@@ -2,18 +2,18 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-export interface ReadSeekJsonSettings {
+interface ReadSeekJsonSettings {
   grep?: { maxLines?: number; maxBytes?: number };
   edit?: { diffDisplay?: "collapsed" | "expanded" };
 }
 
-export interface ReadSeekSettingsWarning {
+interface ReadSeekSettingsWarning {
   source: string;
   message: string;
   path?: string;
 }
 
-export interface ReadSeekSettingsResult {
+interface ReadSeekSettingsResult {
   settings: ReadSeekJsonSettings;
   warnings: ReadSeekSettingsWarning[];
 }

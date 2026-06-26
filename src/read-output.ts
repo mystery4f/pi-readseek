@@ -7,7 +7,7 @@ import {
 import { buildReadSeekLines, renderReadSeekLines, type ReadSeekLine, type ReadSeekWarning } from "./readseek-value.js";
 
 
-export interface ReadSymbolMetadata {
+interface ReadSymbolMetadata {
   query: string;
   name: string;
   kind: string;
@@ -16,36 +16,36 @@ export interface ReadSymbolMetadata {
   endLine: number;
 }
 
-export interface ReadTruncationMetadata {
+interface ReadTruncationMetadata {
   outputLines: number;
   totalLines: number;
   outputBytes: number;
   totalBytes: number;
 }
 
-export interface ReadMapMetadata {
+interface ReadMapMetadata {
   requested: boolean;
   appended: boolean;
   text?: string | null;
 }
 
-export interface ReadContinuationMetadata {
+interface ReadContinuationMetadata {
   nextOffset: number;
 }
 
-export interface ReadBundleSupportItem {
+interface ReadBundleSupportItem {
   symbol: ReadSymbolMetadata;
   lines: string[];
 }
 
-export interface ReadBundleMetadata {
+interface ReadBundleMetadata {
   mode: "local";
   applied: boolean;
   localSupport: ReadBundleSupportItem[];
   warnings?: ReadSeekWarning[];
 }
 
-export interface ReadOutputInput {
+interface ReadOutputInput {
   path: string;
   startLine: number;
   endLine: number;
@@ -60,7 +60,7 @@ export interface ReadOutputInput {
   bundle?: ReadBundleMetadata | null;
 }
 
-export interface ReadOutputResult {
+interface ReadOutputResult {
   text: string;
   lines: ReadSeekLine[];
   readseekValue: {

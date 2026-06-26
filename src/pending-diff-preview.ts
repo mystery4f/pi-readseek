@@ -4,9 +4,9 @@ import { generateDiffString, normalizeToLF, replaceText } from "./edit-diff.js";
 import { applyHashlineEdits, type HashlineEditItem } from "./hashline.js";
 import { replaceSymbol } from "./replace-symbol.js";
 
-export const PENDING_DIFF_MAX_BYTES = 1024 * 1024;
+const PENDING_DIFF_MAX_BYTES = 1024 * 1024;
 
-export interface PendingDiffPreviewData {
+interface PendingDiffPreviewData {
 	filePath: string;
 	previousContent: string;
 	nextContent: string;
@@ -204,7 +204,7 @@ export async function buildPendingEditPreviewData(input: PendingEditInput, cwd: 
 	return buildData(resolved.path, previous.content, next, true, "pending edit");
 }
 
-export interface PendingDiffPreviewCacheSlot<T = PendingDiffPreviewResult> {
+interface PendingDiffPreviewCacheSlot<T = PendingDiffPreviewResult> {
 	key?: string;
 	data?: T;
 	pending?: boolean;

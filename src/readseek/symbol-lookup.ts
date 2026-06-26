@@ -9,7 +9,7 @@ export interface SymbolMatch {
   parentName?: string;
 }
 
-export type SymbolLookupResult =
+type SymbolLookupResult =
   | { type: "found"; symbol: SymbolMatch }
   | { type: "ambiguous"; candidates: SymbolMatch[] }
   | {

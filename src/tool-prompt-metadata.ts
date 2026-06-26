@@ -41,20 +41,20 @@ const COMPACT_GUIDELINES: Record<string, string[]> = {
   ],
 };
 
-export interface ToolPromptMetadata {
+interface ToolPromptMetadata {
   description: string;
   promptSnippet: string;
   promptGuidelines: string[];
 }
 
-export function loadPrompt(promptUrl: URL): string {
+function loadPrompt(promptUrl: URL): string {
   return readFileSync(promptUrl, "utf-8")
     .replaceAll("{{DEFAULT_MAX_LINES}}", String(DEFAULT_MAX_LINES))
     .replaceAll("{{DEFAULT_MAX_BYTES}}", formatSize(DEFAULT_MAX_BYTES))
     .trim();
 }
 
-export function firstPromptParagraph(prompt: string): string {
+function firstPromptParagraph(prompt: string): string {
   return prompt.split(/\n\s*\n/, 1)[0]?.trim() ?? prompt;
 }
 

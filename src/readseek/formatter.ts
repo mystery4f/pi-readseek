@@ -132,7 +132,7 @@ function formatSymbols(
 /**
  * Format a complete file map to a string.
  */
-export function formatFileMap(map: FileMap, level?: DetailLevel): string {
+function formatFileMap(map: FileMap, level?: DetailLevel): string {
   const effectiveLevel = level ?? map.detailLevel;
   const fileName = basename(map.path);
 
@@ -236,7 +236,7 @@ export function formatFileMap(map: FileMap, level?: DetailLevel): string {
 /**
  * Reduce detail level of a file map.
  */
-export function reduceToLevel(map: FileMap, level: DetailLevel): FileMap {
+function reduceToLevel(map: FileMap, level: DetailLevel): FileMap {
   if (level === DetailLevel.Outline) {
     // Remove all children and signatures
     return {
@@ -303,7 +303,7 @@ function stripSignatures(symbol: FileSymbol): FileSymbol {
  * Reduce a file map to truncated form: first N + last N symbols only.
  * Used when even Outline level exceeds budget.
  */
-export function reduceToTruncated(
+function reduceToTruncated(
   map: FileMap,
   symbolsEach: number = THRESHOLDS.TRUNCATED_SYMBOLS_EACH
 ): FileMap {

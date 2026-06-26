@@ -1,4 +1,4 @@
-export interface GrepCallTextResult {
+interface GrepCallTextResult {
   pattern: string;
   suffix: string | undefined;
 }
@@ -24,7 +24,7 @@ export function formatGrepCallText(
 
 const GREP_TRUNCATION_THRESHOLD = 50;
 
-export interface GrepResultTextInput {
+interface GrepResultTextInput {
   totalMatches: number;
   summary: boolean;
   records: unknown[];
@@ -34,7 +34,7 @@ export interface GrepResultTextInput {
   errorText?: string;
 }
 
-export interface GrepResultTextOutput {
+interface GrepResultTextOutput {
   summary: string;
   badges: string[];
   noMatches: boolean;

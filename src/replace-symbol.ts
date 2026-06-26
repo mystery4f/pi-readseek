@@ -3,14 +3,14 @@ import { findSymbol } from "./readseek/symbol-lookup.js";
 import { formatAmbiguous, formatNotFound } from "./readseek/symbol-error-format.js";
 import { normalizeToLF } from "./edit-diff.js";
 
-export interface ReplaceSymbolInput {
+interface ReplaceSymbolInput {
 	filePath: string;
 	content: string;
 	symbol: string;
 	newBody: string;
 }
 
-export type ReplaceSymbolResult =
+type ReplaceSymbolResult =
 	| { type: "ok"; content: string; replacement: string; warnings: string[]; range: { start: number; end: number } }
 	| { type: "not-found"; message: string }
 	| { type: "ambiguous"; message: string }

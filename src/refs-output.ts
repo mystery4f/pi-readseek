@@ -10,12 +10,12 @@ export interface RefsOutputFile {
   lines: RefsOutputLine[];
 }
 
-export interface BuildRefsOutputInput {
+interface BuildRefsOutputInput {
   name: string;
   files: RefsOutputFile[];
 }
 
-export interface RefsOutputResult {
+interface RefsOutputResult {
   text: string;
   readseekValue: {
     tool: "refs";

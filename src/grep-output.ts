@@ -10,7 +10,7 @@ export interface GrepOutputRecord extends ReadSeekLine {
   kind: "match" | "context";
 }
 
-export interface GrepOutputReadSeekRecord {
+interface GrepOutputReadSeekRecord {
   path: string;
   line: number;
   anchor: string;
@@ -55,7 +55,7 @@ function hasScope(group: GrepOutputGroup): group is ScopedGrepOutputGroup {
   return group.scope !== undefined;
 }
 
-export interface BuildGrepOutputInput {
+interface BuildGrepOutputInput {
   summary: boolean;
   totalMatches: number;
   groups: GrepOutputGroup[];
@@ -66,7 +66,7 @@ export interface BuildGrepOutputInput {
   passthroughLines?: string[];
 }
 
-export interface GrepOutputResult {
+interface GrepOutputResult {
   text: string;
   readseekValue: {
     tool: "grep";

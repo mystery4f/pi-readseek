@@ -14,7 +14,7 @@ export interface ReadSeekHashline {
 	text: string;
 }
 
-export interface ReadSeekReadOutput {
+interface ReadSeekReadOutput {
 	file: string;
 	language: string;
 	line_count: number;
@@ -42,7 +42,7 @@ interface ReadSeekMapOutput {
 	symbols: ReadSeekSymbol[];
 }
 
-export interface ReadSeekSearchCapture {
+interface ReadSeekSearchCapture {
 	name: string;
 	start_line: number;
 	end_line: number;
@@ -51,7 +51,7 @@ export interface ReadSeekSearchCapture {
 	hashlines: ReadSeekHashline[];
 }
 
-export interface ReadSeekSearchMatch {
+interface ReadSeekSearchMatch {
 	pattern_index: number;
 	start_line: number;
 	end_line: number;
@@ -85,7 +85,7 @@ interface ReadSeekRefsOutput {
 	references: ReadSeekReference[];
 }
 
-export interface ReadSeekRefsOptions {
+interface ReadSeekRefsOptions {
 	scope?: boolean;
 	line?: number;
 	column?: number;
@@ -108,7 +108,7 @@ export interface ReadSeekCheckOutput {
 	diagnostics: ReadSeekDiagnostic[];
 }
 
-export interface ReadSeekSearchOptions {
+interface ReadSeekSearchOptions {
 	language?: string;
 	cached?: boolean;
 	others?: boolean;
@@ -174,7 +174,7 @@ function readseekPackageDir(): string {
 	return path.dirname(require.resolve("@jarkkojs/readseek/package.json"));
 }
 
-export function readseekBinaryPath(): string {
+function readseekBinaryPath(): string {
 	if (process.env.READSEEK_BIN) return process.env.READSEEK_BIN;
 
 	const platformPackage = (() => {
@@ -203,7 +203,7 @@ export function isReadSeekAvailable(): boolean {
 	}
 }
 
-export interface ReadSeekFailure {
+interface ReadSeekFailure {
 	code: "readseek-not-installed" | "readseek-execution-error";
 	message: string;
 	hint?: string;
