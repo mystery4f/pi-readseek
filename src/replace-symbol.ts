@@ -1,6 +1,7 @@
 import { readseekMapContent } from "./readseek-client.js";
 import { findSymbol } from "./readseek/symbol-lookup.js";
 import { formatAmbiguous, formatNotFound } from "./readseek/symbol-error-format.js";
+import { normalizeToLF } from "./edit-diff.js";
 
 export interface ReplaceSymbolInput {
 	filePath: string;
@@ -50,7 +51,7 @@ export async function replaceSymbol(input: ReplaceSymbolInput): Promise<ReplaceS
 	const lines = input.content.split("\n");
 	const sigLine = lines[sym.startLine - 1] ?? "";
 	const indent = detectIndent(sigLine);
-	const reindented = reindent(dedent(input.newBody), indent);
+	const reindented = reindent(dedent(normalizeToLF(input.newBody)), indent);
 	const warnings: string[] = [];
 	const leaf = input.symbol.replace(/@\d+$/, "").split(".").pop() ?? "";
 	const declNameRe =
