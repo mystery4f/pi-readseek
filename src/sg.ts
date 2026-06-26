@@ -1,5 +1,4 @@
 import path from "node:path";
-import { stat as fsStat } from "node:fs/promises";
 
 import type { ExtensionAPI, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
@@ -8,6 +7,7 @@ import { Type } from "@sinclair/typebox";
 import { defineToolPromptMetadata } from "./tool-prompt-metadata.js";
 import { buildReadseekLineWithHash, buildToolErrorResult, type ReadseekLine } from "./readseek-value.js";
 import { resolveToCwd } from "./path-utils.js";
+import { statSearchPathOrError } from "./stat-search-path.js";
 import { classifyReadseekFailure, isReadseekAvailable, readseekSearch, type ReadseekHashline, type ReadseekSearchFileOutput } from "./readseek-client.js";
 import { buildSgOutput } from "./sg-output.js";
 import type { FileAnchoredCallback } from "./tool-types.js";
@@ -112,23 +112,10 @@ export async function executeSg(opts: ExecuteSgOptions): Promise<any> {
     return buildToolErrorResult("search", "invalid-parameter", message);
   }
   const searchPath = resolveToCwd(p.path ?? ".", cwd);
-  let searchPathIsFile = false;
 
-  try {
-    const stat = await fsStat(searchPath);
-    searchPathIsFile = stat.isFile();
-  } catch (err: any) {
-    if (err?.code === "ENOENT") {
-      const message = `Error: path '${p.path ?? "."}' does not exist`;
-      return buildToolErrorResult("search", "path-not-found", message, { path: p.path ?? searchPath });
-    }
-    if (err?.code === "EACCES" || err?.code === "EPERM") {
-      const message = `Error: permission denied for path '${p.path ?? "."}'`;
-      return buildToolErrorResult("search", "permission-denied", message, { path: p.path ?? searchPath });
-    }
-    const message = `Error: could not access path '${p.path ?? "."}': ${err?.message ?? String(err)}`;
-    return buildToolErrorResult("search", "fs-error", message, { path: p.path ?? searchPath, details: { fsCode: err?.code, fsMessage: err?.message } });
-  }
+  const statResult = await statSearchPathOrError("search", p.path, searchPath);
+  if (!statResult.ok) return statResult.error;
+  const searchPathIsFile = statResult.stats.isFile();
 
   try {
     const effectiveLang = readseekLanguageForPath(p.lang, searchPath, searchPathIsFile);

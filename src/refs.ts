@@ -2,8 +2,8 @@ import type { ExtensionAPI, ToolRenderResultOptions } from "@earendil-works/pi-c
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "@sinclair/typebox";
 import path from "node:path";
-import { stat as fsStat } from "node:fs/promises";
 import { defineToolPromptMetadata } from "./tool-prompt-metadata.js";
+import { statSearchPathOrError } from "./stat-search-path.js";
 import { buildReadseekLineWithHash, buildToolErrorResult } from "./readseek-value.js";
 import { resolveToCwd } from "./path-utils.js";
 import { classifyReadseekFailure, readseekRefs, type ReadseekReference } from "./readseek-client.js";
@@ -91,25 +91,8 @@ export async function executeRefs(opts: ExecuteRefsOptions): Promise<any> {
   }
   const searchPath = resolveToCwd(p.path ?? ".", cwd);
 
-  try {
-    await fsStat(searchPath);
-  } catch (err: any) {
-    if (err?.code === "ENOENT") {
-      return buildToolErrorResult("refs", "path-not-found", `Error: path '${p.path ?? "."}' does not exist`, {
-        path: p.path ?? searchPath,
-      });
-    }
-    if (err?.code === "EACCES" || err?.code === "EPERM") {
-      return buildToolErrorResult("refs", "permission-denied", `Error: permission denied for path '${p.path ?? "."}'`, {
-        path: p.path ?? searchPath,
-      });
-    }
-    const message = `Error: could not access path '${p.path ?? "."}': ${err?.message ?? String(err)}`;
-    return buildToolErrorResult("refs", "fs-error", message, {
-      path: p.path ?? searchPath,
-      details: { fsCode: err?.code, fsMessage: err?.message },
-    });
-  }
+  const statResult = await statSearchPathOrError("refs", p.path, searchPath);
+  if (!statResult.ok) return statResult.error;
 
   try {
     const references = await readseekRefs(searchPath, p.name, {
