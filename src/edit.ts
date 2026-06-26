@@ -351,6 +351,38 @@ export async function executeEdit(opts: ExecuteEditOptions): Promise<any> {
 			}
 		}
 	}
+
+	const anchorIntervals: { lo: number; hi: number }[] = [];
+	for (const edit of anchorEdits) {
+		try {
+			if ("set_line" in edit) {
+				const line = parseLineRef(edit.set_line.anchor).line;
+				anchorIntervals.push({ lo: line, hi: line });
+			} else if ("replace_lines" in edit) {
+				const start = parseLineRef(edit.replace_lines.start_anchor).line;
+				const end = parseLineRef(edit.replace_lines.end_anchor).line;
+				anchorIntervals.push({ lo: Math.min(start, end), hi: Math.max(start, end) });
+			}
+		} catch {
+		}
+	}
+	const seenAnchorIntervals = new Set<string>();
+	const uniqueAnchorIntervals: { lo: number; hi: number }[] = [];
+	for (const interval of anchorIntervals) {
+		const key = `${interval.lo}:${interval.hi}`;
+		if (seenAnchorIntervals.has(key)) continue;
+		seenAnchorIntervals.add(key);
+		uniqueAnchorIntervals.push(interval);
+	}
+	uniqueAnchorIntervals.sort((a, b) => a.lo - b.lo || a.hi - b.hi);
+	for (let i = 1; i < uniqueAnchorIntervals.length; i++) {
+		const prev = uniqueAnchorIntervals[i - 1];
+		const current = uniqueAnchorIntervals[i];
+		if (current.lo <= prev.hi) {
+			const message = `Anchored edits overlap (lines ${prev.lo}-${prev.hi} and ${current.lo}-${current.hi}). Split into separate, non-overlapping edits or re-read for fresh anchors.`;
+			return buildEditError(absolutePath, "invalid-edit-variant", message);
+		}
+	}
 	// Apply pass: reuse all probe results. The probe pass resolved every
 	// replace_symbol against originalNormalized; apply those replacements in
 	// reverse source order so original line ranges stay valid and no second
