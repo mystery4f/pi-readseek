@@ -16,6 +16,7 @@ import { buildEditOutput } from "./edit-output.js";
 import { classifyEdit, isDifftAvailable, runDifftastic } from "./edit-classify.js";
 import type { SemanticSummary } from "./readseek-value.js";
 import { buildReadseekError } from "./readseek-value.js";
+import { classifyReadseekFailure } from "./readseek-client.js";
 import { countEditTypes, formatEditCallText, formatEditResultText } from "./edit-render-helpers.js";
 import { validateSyntaxRegression } from "./edit-syntax-validate.js";
 import { resolveSyntaxValidateMode, type SyntaxValidateOptions } from "./syntax-validate-mode.js";
@@ -276,20 +277,26 @@ export async function executeEdit(opts: ExecuteEditOptions): Promise<any> {
 	// readseekMapContent is invoked at most once per replace_symbol edit.
 	const replaceSymbolRanges: { start: number; end: number }[] = [];
 	const rsProbeResults: { type: "ok"; content: string; replacement: string; warnings: string[]; range: { start: number; end: number } }[] = [];
-	for (const rs of replaceSymbolEdits) {
-		throwIfAborted(signal);
-		const probe = await replaceSymbol({
-			filePath: absolutePath,
-			content: originalNormalized,
-			symbol: rs.replace_symbol.symbol,
-			newBody: rs.replace_symbol.new_body,
-		});
-		if (probe.type !== "ok") {
-			// symbol-resolution errors surface before the overlap check.
-			return buildEditError(absolutePath, "invalid-edit-variant", probe.message);
+	try {
+		for (const rs of replaceSymbolEdits) {
+			throwIfAborted(signal);
+			const probe = await replaceSymbol({
+				filePath: absolutePath,
+				content: originalNormalized,
+				symbol: rs.replace_symbol.symbol,
+				newBody: rs.replace_symbol.new_body,
+			});
+			if (probe.type !== "ok") {
+				// symbol-resolution errors surface before the overlap check.
+				return buildEditError(absolutePath, "invalid-edit-variant", probe.message);
+			}
+			rsProbeResults.push(probe);
+			replaceSymbolRanges.push(probe.range);
 		}
-		rsProbeResults.push(probe);
-		replaceSymbolRanges.push(probe.range);
+	} catch (err) {
+		throwIfAborted(signal);
+		const failure = classifyReadseekFailure(err);
+		return buildEditError(absolutePath, failure.code, failure.message, failure.hint);
 	}
 
 	const sortedReplaceSymbolRanges = [...replaceSymbolRanges].sort((a, b) => a.start - b.start || a.end - b.end);
