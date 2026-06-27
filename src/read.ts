@@ -145,7 +145,7 @@ export async function executeRead(opts: ExecuteReadOptions): Promise<AgentToolRe
 	} catch (err: any) {
 		const code = err?.code;
 		if (code === "EISDIR") {
-			const message = `Path is a directory: ${rawPath}. Use ls to inspect directories.`;
+			const message = `Path is a directory: ${rawPath}`;
 			return buildToolErrorResult("read", "path-is-directory", message, { path: rawParams.path, hint: `Use ls(${JSON.stringify(rawPath)}) to inspect directories.` });
 		}
 		if (code === "EACCES" || code === "EPERM") {
@@ -194,7 +194,7 @@ export async function executeRead(opts: ExecuteReadOptions): Promise<AgentToolRe
 	let startLine = p.offset !== undefined ? p.offset : 1;
 	let endIdx = p.limit !== undefined ? Math.min(startLine - 1 + p.limit, total) : total;
 	if (p.offset !== undefined && startLine > total) {
-		const message = `[offset ${p.offset} is past end of file (${total} lines)]`;
+		const message = `offset ${p.offset} is past end of file (${total} lines)`;
 		return buildToolErrorResult("read", "offset-past-end", message, { path: rawParams.path });
 	}
 	let symbolMatch: SymbolMatch | undefined;
