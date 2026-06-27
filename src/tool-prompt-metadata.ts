@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize } from "@earendil-works/pi-coding-agent";
 
 const COMPACT_DESCRIPTIONS: Record<string, string> = {
-  "read.md": "Read text files/images by path; text has LINE:HASH anchors, images return attachments.",
+  "read.md": "Read text files/images by path; text has LINE:HASH anchors, images return the attachment plus OCR-extracted text.",
   "edit.md": "Edit existing text files using fresh LINE:HASH anchors from read, grep, search, or write.",
   "grep.md": "Search file contents; non-summary results include LINE:HASH anchors for edits.",
 
@@ -16,7 +16,7 @@ const COMPACT_GUIDELINES: Record<string, string[]> = {
   "read.md": [
     "Use read for file contents, images/screenshots, ranges, symbols, and edit anchors.",
     "Use map or symbol mode before pulling large code files into context.",
-    "Use read for images; it returns attachments, so avoid OCR tools unless explicitly needed.",
+    "Use read for images; it returns the image attachment plus OCR-extracted text, so you don't need separate OCR tools.",
   ],
   "edit.md": [
     "Use edit with fresh LINE:HASH anchors for existing files.",

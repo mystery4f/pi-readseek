@@ -108,6 +108,35 @@ export interface ReadSeekCheckOutput {
 	diagnostics: ReadSeekDiagnostic[];
 }
 
+export interface ReadSeekImageInfo {
+	format: string;
+	width: number;
+	height: number;
+	animated: boolean;
+}
+
+export interface ReadSeekOcrLine {
+	text: string;
+	bbox: [number, number, number, number];
+}
+
+export interface ReadSeekOcrText {
+	text: string;
+	lines: ReadSeekOcrLine[];
+}
+
+export interface ReadSeekDetection {
+	file: string;
+	language: string;
+	engine: string | null;
+	supported: boolean;
+	binary: boolean;
+	mime: string | null;
+	syntax: string | null;
+	image: ReadSeekImageInfo | null;
+	ocr?: ReadSeekOcrText;
+}
+
 interface ReadSeekSearchOptions {
 	language?: string;
 	cached?: boolean;
@@ -363,6 +392,11 @@ function requireString(value: unknown, field: string): string {
 	return value;
 }
 
+function requireBoolean(value: unknown, field: string): boolean {
+	if (typeof value !== "boolean") throw new Error(`invalid readseek ${field}: expected boolean`);
+	return value;
+}
+
 function parseReadOutput(value: unknown): ReadSeekReadOutput {
 	if (!value || typeof value !== "object") throw new Error("invalid readseek read output");
 	const output = value as Record<string, unknown>;
@@ -520,6 +554,11 @@ function optionalString(value: unknown, field: string): string | undefined {
 	return requireString(value, field);
 }
 
+function nullableString(value: unknown, field: string): string | null {
+	if (value === undefined || value === null) return null;
+	return requireString(value, field);
+}
+
 function parseRefsOutput(value: unknown): ReadSeekRefsOutput {
 	if (!value || typeof value !== "object") throw new Error("invalid readseek refs output");
 	const output = value as Record<string, unknown>;
@@ -593,4 +632,62 @@ export async function readseekCheck(
 	return parseCheckOutput(
 		await runReadSeek(["check", "--stdin", filePath], { signal: options.signal, stdin: content }),
 	);
+}
+
+function parseImageInfo(value: unknown): ReadSeekImageInfo | null {
+	if (value === undefined || value === null) return null;
+	if (typeof value !== "object") throw new Error("invalid readseek detect image");
+	const image = value as Record<string, unknown>;
+	return {
+		format: requireString(image.format, "image.format"),
+		width: requireNumber(image.width, "image.width"),
+		height: requireNumber(image.height, "image.height"),
+		animated: requireBoolean(image.animated, "image.animated"),
+	};
+}
+
+function parseOcrText(value: unknown): ReadSeekOcrText | undefined {
+	if (value === undefined || value === null) return undefined;
+	if (typeof value !== "object") throw new Error("invalid readseek detect ocr");
+	const ocr = value as Record<string, unknown>;
+	if (!Array.isArray(ocr.lines)) throw new Error("invalid readseek detect ocr.lines");
+	return {
+		text: requireString(ocr.text, "ocr.text"),
+		lines: ocr.lines.map((line) => {
+			if (!line || typeof line !== "object") throw new Error("invalid readseek detect ocr line");
+			const item = line as Record<string, unknown>;
+			const bbox = item.bbox;
+			if (!Array.isArray(bbox) || bbox.length !== 4) throw new Error("invalid readseek detect ocr bbox");
+			return {
+				text: requireString(item.text, "ocr.line.text"),
+				bbox: bbox.map((n, i) => requireNumber(n, `ocr.line.bbox[${i}]`)) as [number, number, number, number],
+			};
+		}),
+	};
+}
+
+function parseDetectOutput(value: unknown): ReadSeekDetection {
+	if (!value || typeof value !== "object") throw new Error("invalid readseek detect output");
+	const output = value as Record<string, unknown>;
+	return {
+		file: requireString(output.file, "file"),
+		language: requireString(output.language, "language"),
+		engine: nullableString(output.engine, "engine"),
+		supported: requireBoolean(output.supported, "supported"),
+		binary: requireBoolean(output.binary, "binary"),
+		mime: nullableString(output.mime, "mime"),
+		syntax: nullableString(output.syntax, "syntax"),
+		image: parseImageInfo(output.image),
+		ocr: parseOcrText(output.ocr),
+	};
+}
+
+export async function readseekDetect(
+	filePath: string,
+	options: { ocr?: boolean; signal?: AbortSignal } = {},
+): Promise<ReadSeekDetection> {
+	const args = ["detect"];
+	if (options.ocr) args.push("--ocr");
+	args.push(filePath);
+	return parseDetectOutput(await runReadSeek(args, { signal: options.signal }));
 }

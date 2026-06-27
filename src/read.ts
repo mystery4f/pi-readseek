@@ -15,7 +15,6 @@ import { normalizeToLF, stripBom, hasBareCarriageReturn } from "./edit-diff.js";
 import { ensureHashInit, escapeControlCharsForDisplay } from "./hashline.js";
 import { buildReadSeekWarning, buildToolErrorResult, renderReadSeekLines, type ReadSeekLine, type ReadSeekWarning } from "./readseek-value.js";
 import { looksLikeBinary } from "./binary-detect.js";
-import { isSupportedImageBuffer } from "./image-detect.js";
 import { resolveToCwd } from "./path-utils.js";
 import { throwIfAborted } from "./runtime.js";
 import { getOrGenerateMap } from "./file-map.js";
@@ -26,7 +25,7 @@ import { buildReadOutput } from "./read-output.js";
 
 import { buildLocalBundle } from "./read-local-bundle.js";
 import { coerceObviousBase10Int } from "./coerce-obvious-int.js";
-import { readseekRead } from "./readseek-client.js";
+import { readseekRead, readseekDetect, type ReadSeekDetection } from "./readseek-client.js";
 import { formatReadCallText, formatReadResultText } from "./read-render-helpers.js";
 import { clampLineToWidth, clampLinesToWidth, linkToolPath, renderPendingResult, renderToolLabel, resolveRenderResultContext, summaryLine, wrapReadHashlinesForWidth } from "./tui-render-utils.js";
 import type { FileAnchoredCallback } from "./tool-types.js";
@@ -34,7 +33,7 @@ import { registerReadSeekTool } from "./register-tool.js";
 
 const READ_PROMPT_METADATA = defineToolPromptMetadata({
 	promptUrl: new URL("../prompts/read.md", import.meta.url),
-	promptSnippet: "Read text files or images; text reads include hashline anchors and optional maps/symbol lookup",
+	promptSnippet: "Read text files or images; text reads include hashline anchors and optional maps/symbol lookup, image reads include the attachment plus OCR text",
 });
 
 interface ReadParams {
@@ -138,15 +137,8 @@ export async function executeRead(opts: ExecuteReadOptions): Promise<AgentToolRe
 		const message = "Cannot combine map with symbol. Use one or the other.";
 		return buildToolErrorResult("read", "invalid-params-combo", message, { path: rawParams.path });
 	}
-	// Delegate images to the built-in read tool
 	throwIfAborted(signal);
 	const ext = rawPath.split(".").pop()?.toLowerCase() ?? "";
-	if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
-		const builtinRead = createReadTool(cwd);
-		return succeed(await builtinRead.execute(toolCallId, p, signal, onUpdate));
-	}
-
-	throwIfAborted(signal);
 	let rawBuffer: Buffer;
 	try {
 		rawBuffer = await fsReadFile(absolutePath);
@@ -168,11 +160,31 @@ export async function executeRead(opts: ExecuteReadOptions): Promise<AgentToolRe
 		return buildToolErrorResult("read", "fs-error", message, { path: rawParams.path, details: { fsCode: code, fsMessage: err?.message } });
 	}
 
-	if (isSupportedImageBuffer(rawBuffer)) {
-		const builtinRead = createReadTool(cwd);
-		return succeed(await builtinRead.execute(toolCallId, p, signal, onUpdate));
-	}
 	const hasBinaryContent = looksLikeBinary(rawBuffer);
+	if (hasBinaryContent) {
+		// Images are always binary; classify and OCR in a single readseek detect call.
+		let detection: ReadSeekDetection | undefined;
+		try {
+			detection = await readseekDetect(absolutePath, { ocr: true, signal });
+		} catch {
+			// detect unavailable — fall through to binary-as-text handling below
+		}
+		if (detection?.image) {
+			const builtinRead = createReadTool(cwd);
+			const builtinResult = await builtinRead.execute(toolCallId, p, signal, onUpdate);
+			const ocrText = detection.ocr?.text?.trim();
+			if (ocrText) {
+				return succeed({
+					...builtinResult,
+					content: [
+						...(builtinResult.content ?? []),
+						{ type: "text" as const, text: `OCR text extracted from image:\n${ocrText}` },
+					],
+				});
+			}
+			return succeed(builtinResult);
+		}
+	}
 	throwIfAborted(signal);
 	const rawText = rawBuffer.toString("utf-8");
 	const normalized = normalizeToLF(stripBom(rawText).text);
