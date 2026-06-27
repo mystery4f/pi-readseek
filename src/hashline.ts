@@ -121,7 +121,11 @@ export function formatHashlineDisplay(lineNumber: number, content: string): stri
 export function parseLineRef(ref: string): { line: number; hash: string; content?: string } {
 	const contentMatch = ref.match(/^[^|]*\|(.*)$/);
 	const contentAfterPipe = contentMatch ? contentMatch[1] : undefined;
-	const cleaned = ref.replace(/\|.*$/, "").replace(/ {2}.*$/, "").trim();
+	const cleaned = ref
+		.replace(/\|.*$/, "") // drop |content suffix
+		.replace(/^[\s>]+/, "") // drop leading gutter: >> / >>> / indentation
+		.replace(/ {2}.*$/, "") // drop trailing "  comment"
+		.trim();
 	const normalized = cleaned.replace(/\s*:\s*/, ":");
 	const match = normalized.match(new RegExp(`^(\\d+):([0-9a-fA-F]{${HASH_LEN}})$`));
 	if (!match) throw new Error(`Invalid line reference "${ref}". Expected "LINE:HASH" (e.g. "5:abc").`);
