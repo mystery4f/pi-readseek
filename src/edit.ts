@@ -24,7 +24,7 @@ import { replaceSymbol } from "./replace-symbol.js";
 import { buildEditPreviewKey, buildPendingEditPreviewData, resolvePendingDiffPreview, type PendingDiffPreviewResult } from "./pending-diff-preview.js";
 import { buildDiffData, type DiffBlockRange } from "./diff-data.js";
 import { clampLineToWidth, clampLinesToWidth, linkToolPath, renderPendingResult, resolveRenderResultContext, summaryLine } from "./tui-render-utils.js";
-import { DiffPreviewComponent } from "./tui-diff-component.js";
+import { upsertDiffComponent, upsertTextComponent } from "./tui-diff-component.js";
 import type { FreshAnchorsPredicate } from "./tool-types.js";
 import { registerReadSeekTool } from "./register-tool.js";
 
@@ -643,11 +643,7 @@ export function registerEditTool(pi: ExtensionAPI, options: EditToolOptions = {}
 			// expandable diff). Keeping the "↳ pending edit" sub-line and its
 			// preview alongside the final result is just duplicate noise.
 			if (context.executionStarted) {
-				const textComponent = (context.lastComponent && !(context.lastComponent instanceof DiffPreviewComponent))
-					? context.lastComponent
-					: new Text("", 0, 0);
-				textComponent.setText(text);
-				return textComponent;
+				return upsertTextComponent(context.lastComponent, text);
 			}
 			const previewKey = buildEditPreviewKey(args ?? {});
 			const preview = resolvePendingDiffPreview(
@@ -659,17 +655,9 @@ export function registerEditTool(pi: ExtensionAPI, options: EditToolOptions = {}
 			const expanded = !!context.expanded || resolveEditDiffDisplay() === "expanded";
 			const preview2 = pendingPreviewLines(text, preview, expanded);
 			if (preview2.diffData) {
-				const diffComponent = context.lastComponent instanceof DiffPreviewComponent
-					? context.lastComponent
-					: new DiffPreviewComponent({ prefixLines: preview2.lines, diffData: preview2.diffData, theme, expanded: true });
-				diffComponent.update({ prefixLines: preview2.lines, diffData: preview2.diffData, theme, expanded: true });
-				return diffComponent;
+				return upsertDiffComponent(context.lastComponent, { prefixLines: preview2.lines, diffData: preview2.diffData, theme, expanded: true });
 			}
-			const textComponent = (context.lastComponent && !(context.lastComponent instanceof DiffPreviewComponent))
-				? context.lastComponent
-				: new Text("", 0, 0);
-			textComponent.setText(clampLinesToWidth(preview2.lines, context.width).join("\n"));
-			return textComponent;
+			return upsertTextComponent(context.lastComponent, clampLinesToWidth(preview2.lines, context.width).join("\n"));
 		},
 			renderResult(result: any, options: ToolRenderResultOptions, theme: any, ...rest: any[]) {
 			const { isPartial, isError, expanded: baseExpanded, width, context } = resolveRenderResultContext(options, rest);
@@ -719,11 +707,7 @@ export function registerEditTool(pi: ExtensionAPI, options: EditToolOptions = {}
 				if (info.warningsBadge) badges.push(info.warningsBadge);
 				text = summaryLine(badges.join(" • "), { hidden: !!diffData && !expanded });
 				if (expanded && diffData) {
-					const diffComponent = context.lastComponent instanceof DiffPreviewComponent
-						? context.lastComponent
-						: new DiffPreviewComponent({ prefixLines: text.split("\n"), diffData, theme, expanded: true });
-					diffComponent.update({ prefixLines: text.split("\n"), diffData, theme, expanded: true });
-					return diffComponent;
+					return upsertDiffComponent(context.lastComponent, { prefixLines: text.split("\n"), diffData, theme, expanded: true });
 				}
 			}
 			return new Text(clampLinesToWidth(text.split("\n"), width).join("\n"), 0, 0);

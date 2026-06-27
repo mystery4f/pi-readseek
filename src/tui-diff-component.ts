@@ -1,5 +1,5 @@
 import type { Component } from "@earendil-works/pi-tui";
-import { visibleWidth } from "@earendil-works/pi-tui";
+import { Text, visibleWidth } from "@earendil-works/pi-tui";
 import type { DiffData } from "./diff-data.js";
 import { renderTuiDiff } from "./tui-diff-renderer.js";
 import { clampLineToWidth, normalizeWidth, type RendererTheme } from "./tui-render-utils.js";
@@ -83,4 +83,26 @@ export class DiffPreviewComponent implements Component {
 		this.cachedWidth = normalized;
 		return clamped;
 	}
+}
+
+/**
+ * Reuse the prior render tick's {@link DiffPreviewComponent} when present, else
+ * construct one, then apply {@link options}. Keeps a streaming diff preview
+ * stable across ticks instead of remounting a fresh component each frame.
+ */
+export function upsertDiffComponent(lastComponent: unknown, options: DiffPreviewComponentOptions): DiffPreviewComponent {
+	const component = lastComponent instanceof DiffPreviewComponent ? lastComponent : new DiffPreviewComponent(options);
+	component.update(options);
+	return component;
+}
+
+/**
+ * Reuse the prior render tick's text component when it is not a
+ * {@link DiffPreviewComponent}, else construct a fresh {@link Text}, then set
+ * its content to {@link text}.
+ */
+export function upsertTextComponent(lastComponent: any, text: string): Text {
+	const component = lastComponent && !(lastComponent instanceof DiffPreviewComponent) ? lastComponent : new Text("", 0, 0);
+	component.setText(text);
+	return component;
 }

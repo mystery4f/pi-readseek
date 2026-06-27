@@ -17,7 +17,7 @@ import { buildPendingWritePreviewData, buildWritePreviewKey, resolvePendingDiffP
 import { generateCompactOrFullDiff, normalizeToLF, hasBareCarriageReturn } from "./edit-diff.js";
 import { buildDiffData, type DiffData } from "./diff-data.js";
 import { clampLineToWidth, clampLinesToWidth, isRendererExpanded, linkToolPath, renderErrorResult, renderToolLabel, summaryLine } from "./tui-render-utils.js";
-import { DiffPreviewComponent } from "./tui-diff-component.js";
+import { upsertDiffComponent, upsertTextComponent } from "./tui-diff-component.js";
 import type { FileAnchoredCallback } from "./tool-types.js";
 import { registerReadSeekTool } from "./register-tool.js";
 
@@ -399,28 +399,16 @@ export function registerWriteTool(pi: ExtensionAPI, options: WriteToolOptions = 
       // its preview alongside the final result is just duplicate noise — the
       // pre-execution state can no longer change in any meaningful way.
       if (context.executionStarted) {
-        const textComponent = (context.lastComponent && !(context.lastComponent instanceof DiffPreviewComponent))
-          ? context.lastComponent
-          : new Text("", 0, 0);
-        textComponent.setText(text);
-        return textComponent;
+        return upsertTextComponent(context.lastComponent, text);
       }
       const previewKey = buildWritePreviewKey(args ?? {});
       const preview = resolvePendingDiffPreview(context, WRITE_PENDING_PREVIEW_STATE_KEY, previewKey, () => buildPendingWritePreviewData(args ?? {}, context.cwd ?? process.cwd()));
       const expanded = !!context.expanded;
       const parts = pendingWritePreviewParts(text, preview, expanded, theme);
       if (parts.diffData) {
-        const diffComponent = context.lastComponent instanceof DiffPreviewComponent
-          ? context.lastComponent
-          : new DiffPreviewComponent({ prefixLines: parts.lines, diffData: parts.diffData, theme, expanded: true });
-        diffComponent.update({ prefixLines: parts.lines, diffData: parts.diffData, theme, expanded: true });
-        return diffComponent;
+        return upsertDiffComponent(context.lastComponent, { prefixLines: parts.lines, diffData: parts.diffData, theme, expanded: true });
       }
-      const textComponent = (context.lastComponent && !(context.lastComponent instanceof DiffPreviewComponent))
-        ? context.lastComponent
-        : new Text("", 0, 0);
-      textComponent.setText(clampLinesToWidth(parts.lines, context.width).join("\n"));
-      return textComponent;
+      return upsertTextComponent(context.lastComponent, clampLinesToWidth(parts.lines, context.width).join("\n"));
     },
     renderResult(result: any, options: any, theme: any, context: any = {}) {
       const expanded = isRendererExpanded(options, context);
@@ -450,11 +438,7 @@ export function registerWriteTool(pi: ExtensionAPI, options: WriteToolOptions = 
       const hasExpandableDiff = !!diffData;
       let text = summaryLine(state, { hidden: hasExpandableDiff && !expanded });
       if (expanded && hasExpandableDiff) {
-        const diffComponent = context.lastComponent instanceof DiffPreviewComponent
-          ? context.lastComponent
-          : new DiffPreviewComponent({ prefixLines: text.split("\n"), diffData, theme, expanded: true });
-        diffComponent.update({ prefixLines: text.split("\n"), diffData, theme, expanded: true });
-        return diffComponent;
+        return upsertDiffComponent(context.lastComponent, { prefixLines: text.split("\n"), diffData, theme, expanded: true });
       }
       return new Text(clampLinesToWidth(text.split("\n"), width).join("\n"), 0, 0);
     },
