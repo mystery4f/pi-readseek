@@ -1,30 +1,25 @@
 import { buildReadSeekLine } from "./readseek-value.js";
 import type { GrepOutputEntry, GrepOutputGroup, GrepOutputScopeSymbol, GrepScopeWarning } from "./grep-output.js";
 import type { FileMap } from "./readseek/types.js";
-import { traverseSymbolTree } from "./symbol-tree.js";
-
-interface FlatSymbol extends GrepOutputScopeSymbol {
-  rangeSize: number;
-}
+import { traverseSymbolTree } from "./readseek/symbol-tree.js";
 
 function findEnclosingSymbol(map: FileMap, lineNumber: number): GrepOutputScopeSymbol | null {
-  const candidates = traverseSymbolTree(map.symbols, (symbol, parentName): FlatSymbol => ({
+  const candidates = traverseSymbolTree(map.symbols, (symbol, parentName): GrepOutputScopeSymbol => ({
     name: symbol.name,
     kind: symbol.kind,
     startLine: symbol.startLine,
     endLine: symbol.endLine,
     parentName,
-    rangeSize: symbol.endLine - symbol.startLine,
   }))
     .filter((s) => lineNumber >= s.startLine && lineNumber <= s.endLine)
     .sort((a, b) => {
-      if (a.rangeSize !== b.rangeSize) return a.rangeSize - b.rangeSize;
+      const rangeA = a.endLine - a.startLine;
+      const rangeB = b.endLine - b.startLine;
+      if (rangeA !== rangeB) return rangeA - rangeB;
       if (a.startLine !== b.startLine) return a.startLine - b.startLine;
       return a.name.localeCompare(b.name);
     });
-  if (!candidates.length) return null;
-  const { rangeSize: _rangeSize, ...symbol } = candidates[0];
-  return symbol;
+  return candidates.length ? candidates[0] : null;
 }
 
 function firstLineNumber(group: GrepOutputGroup): number {

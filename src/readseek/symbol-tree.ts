@@ -1,4 +1,4 @@
-import type { FileSymbol } from "./readseek/types.js";
+import type { FileSymbol } from "./types.js";
 
 /**
  * Depth-first walk over a readseek symbol tree. {@link visit} is called for

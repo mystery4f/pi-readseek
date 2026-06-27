@@ -1,7 +1,7 @@
 import { SymbolKind } from "./readseek/enums.js";
 import type { SymbolMatch } from "./readseek/symbol-lookup.js";
 import type { FileMap, FileSymbol } from "./readseek/types.js";
-import { traverseSymbolTree } from "./symbol-tree.js";
+import { traverseSymbolTree } from "./readseek/symbol-tree.js";
 
 export interface LocalBundleSupport {
   symbol: SymbolMatch;

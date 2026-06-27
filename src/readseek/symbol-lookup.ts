@@ -1,5 +1,6 @@
 import type { FileMap, FileSymbol } from "./types.js";
 import type { SymbolKind } from "./enums.js";
+import { traverseSymbolTree } from "./symbol-tree.js";
 
 export interface SymbolMatch {
   name: string;
@@ -40,20 +41,7 @@ function toMatches(candidates: SymbolCandidate[]): SymbolMatch[] {
 }
 
 function flattenSymbols(symbols: FileSymbol[]): SymbolCandidate[] {
-  const flattened: SymbolCandidate[] = [];
-
-  const visit = (symbol: FileSymbol, parentName?: string): void => {
-    flattened.push({ symbol, parentName });
-    for (const child of symbol.children ?? []) {
-      visit(child, symbol.name);
-    }
-  };
-
-  for (const symbol of symbols) {
-    visit(symbol);
-  }
-
-  return flattened;
+  return traverseSymbolTree(symbols, (symbol, parentName) => ({ symbol, parentName }));
 }
 
 function resolveDotPath(symbols: FileSymbol[], parts: string[]): SymbolCandidate[] {
