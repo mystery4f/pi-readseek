@@ -828,3 +828,86 @@ export async function readseekRename(
 	if (options.ignored) args.push("--ignored");
 	return parseRenameOutput(await runReadSeek(args, { signal: options.signal }));
 }
+
+// --- Identify ---
+
+export interface IdentifierOutput {
+	text: string;
+	start_column: number;
+	end_column: number;
+	start_byte: number;
+	end_byte: number;
+}
+
+export interface IdentifyOutput {
+	file: string;
+	language: string;
+	engine?: string;
+	line_count: number;
+	file_hash: string;
+	line: number;
+	column: number;
+	line_hash: string;
+	identifier?: IdentifierOutput;
+	symbol?: {
+		name: string;
+		kind: string;
+		qualified_name: string;
+		start_line: number;
+		end_line: number;
+	};
+}
+
+interface IdentifyOptions {
+	line?: number;
+	column?: number;
+	language?: string;
+	signal?: AbortSignal;
+}
+
+function parseIdentifyOutput(value: unknown): IdentifyOutput {
+	if (!value || typeof value !== "object") throw new Error("invalid readseek identify output");
+	const output = value as Record<string, unknown>;
+	const identifier = output.identifier;
+	const symbol = output.symbol;
+	return {
+		file: requireString(output.file, "file"),
+		language: requireString(output.language, "language"),
+		engine: optionalString(output.engine, "engine"),
+		line_count: requireNumber(output.line_count, "line_count"),
+		file_hash: requireString(output.file_hash, "file_hash"),
+		line: requireNumber(output.line, "line"),
+		column: requireNumber(output.column, "column"),
+		line_hash: requireString(output.line_hash, "line_hash"),
+		identifier: identifier && typeof identifier === "object"
+			? {
+				text: requireString((identifier as Record<string, unknown>).text, "identifier.text"),
+				start_column: requireNumber((identifier as Record<string, unknown>).start_column, "identifier.start_column"),
+				end_column: requireNumber((identifier as Record<string, unknown>).end_column, "identifier.end_column"),
+				start_byte: requireNumber((identifier as Record<string, unknown>).start_byte, "identifier.start_byte"),
+				end_byte: requireNumber((identifier as Record<string, unknown>).end_byte, "identifier.end_byte"),
+			}
+			: undefined,
+		symbol: symbol && typeof symbol === "object"
+			? {
+				name: requireString((symbol as Record<string, unknown>).name, "symbol.name"),
+				kind: requireString((symbol as Record<string, unknown>).kind, "symbol.kind"),
+				qualified_name: requireString((symbol as Record<string, unknown>).qualified_name, "symbol.qualified_name"),
+				start_line: requireNumber((symbol as Record<string, unknown>).start_line, "symbol.start_line"),
+				end_line: requireNumber((symbol as Record<string, unknown>).end_line, "symbol.end_line"),
+			}
+			: undefined,
+	};
+}
+
+export async function readseekIdentify(
+	filePath: string,
+	content: string,
+	options: IdentifyOptions = {},
+): Promise<IdentifyOutput> {
+	const args = ["identify", "--stdin", filePath];
+	if (options.line !== undefined) args.push("--line", String(options.line));
+	if (options.column !== undefined) args.push("--column", String(options.column));
+	if (options.language) args.push("--language", options.language);
+	return parseIdentifyOutput(await runReadSeek(args, { signal: options.signal, stdin: content }));
+}
