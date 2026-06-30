@@ -911,3 +911,67 @@ export async function readseekIdentify(
 	if (options.language) args.push("--language", options.language);
 	return parseIdentifyOutput(await runReadSeek(args, { signal: options.signal, stdin: content }));
 }
+
+// --- Def ---
+
+export interface DefLocation {
+	file: string;
+	line: number;
+	column: number;
+	line_hash: string;
+	text: string;
+	kind?: string;
+	name?: string;
+	qualified_name?: string;
+}
+
+interface DefOptions {
+	name?: string;
+	fromIdentify?: boolean;
+	identifyInput?: string;
+	language?: string;
+	cached?: boolean;
+	others?: boolean;
+	ignored?: boolean;
+	signal?: AbortSignal;
+}
+
+function parseDefCompact(value: unknown): DefLocation[] {
+	if (!value || typeof value !== "object") throw new Error("invalid readseek def output");
+	const output = value as Record<string, unknown>;
+	const locations = output.locations;
+	if (!Array.isArray(locations)) throw new Error("invalid readseek def locations");
+	return locations.map((loc) => {
+		if (!loc || typeof loc !== "object") throw new Error("invalid readseek def location");
+		const item = loc as Record<string, unknown>;
+		return {
+			file: requireString(item.file, "location.file"),
+			line: requireNumber(item.line, "location.line"),
+			column: requireNumber(item.column, "location.column"),
+			line_hash: requireString(item.line_hash, "location.line_hash"),
+			text: requireString(item.text, "location.text"),
+			kind: optionalString(item.kind, "location.kind"),
+			name: optionalString(item.name, "location.name"),
+			qualified_name: optionalString(item.qualified_name, "location.qualified_name"),
+		};
+	});
+}
+
+export async function readseekDef(
+	target: string,
+	options: DefOptions = {},
+): Promise<DefLocation[]> {
+	const args = ["def", target, "--format", "plain"];
+	if (options.fromIdentify) {
+		args.push("--from-identify");
+	}
+	if (options.name) {
+		args.push(options.name);
+	}
+	if (options.language) args.push("--language", options.language);
+	if (options.cached) args.push("--cached");
+	if (options.others) args.push("--others");
+	if (options.ignored) args.push("--ignored");
+	const stdin = options.fromIdentify && options.identifyInput ? options.identifyInput : undefined;
+	return parseDefCompact(await runReadSeek(args, { signal: options.signal, stdin }));
+}
