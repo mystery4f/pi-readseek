@@ -171,6 +171,55 @@ describe("readseek client parsing", () => {
 		if (detection.kind === "image") expect(detection.transcribe).toBeUndefined();
 	});
 
+	it("parses image captions and objects from requested detections", async () => {
+		const imageOutput = JSON.stringify({
+			type: "image/png",
+			file: "/tmp/image.png",
+			mime: "image/png",
+			format: "png",
+			width: 10,
+			height: 20,
+			animated: false,
+			caption: "A tiny test image.",
+			objects: [{ label: "dot", bbox: [1, 2, 3, 4] }],
+		});
+		spawnMock
+			.mockImplementationOnce(() => spawnResult(""))
+			.mockImplementationOnce(() => spawnResult(imageOutput));
+
+		const detection = await readseekDetect("/tmp/image.png", { caption: true, objects: true });
+
+		expect(spawnMock).toHaveBeenLastCalledWith(
+			"/bin/readseek",
+			["detect", "--caption", "--objects", "/tmp/image.png"],
+			expect.any(Object),
+		);
+		expect(detection.kind).toBe("image");
+		if (detection.kind === "image") {
+			expect(detection.caption).toBe("A tiny test image.");
+			expect(detection.objects).toEqual([{ label: "dot", bbox: [1, 2, 3, 4] }]);
+		}
+	});
+
+	it("rejects invalid image object bounding boxes", async () => {
+		const imageOutput = JSON.stringify({
+			type: "image/png",
+			file: "/tmp/image.png",
+			format: "png",
+			width: 10,
+			height: 20,
+			animated: false,
+			objects: [{ label: "dot", bbox: [1, 2, 3] }],
+		});
+		spawnMock
+			.mockImplementationOnce(() => spawnResult(""))
+			.mockImplementationOnce(() => spawnResult(imageOutput));
+
+		await expect(readseekDetect("/tmp/image.png", { objects: true })).rejects.toThrow(
+			"invalid readseek detect object.bbox",
+		);
+	});
+
 	it("classifies source detections by language field", async () => {
 		const sourceOutput = JSON.stringify({
 			type: "text/plain",

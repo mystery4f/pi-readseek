@@ -118,6 +118,11 @@ export interface ReadSeekTranscript {
 	regions: ReadSeekTranscriptRegion[];
 }
 
+export interface ReadSeekDetectedObject {
+	label: string;
+	bbox: [number, number, number, number];
+}
+
 export type ReadSeekDetection =
 	| {
 			kind: "source";
@@ -139,6 +144,8 @@ export type ReadSeekDetection =
 			height: number;
 			animated: boolean;
 			transcribe?: ReadSeekTranscript;
+			caption?: string;
+			objects?: ReadSeekDetectedObject[];
 		}
 	| {
 			kind: "text";
@@ -152,6 +159,13 @@ interface ReadSeekSearchOptions {
 	cached?: boolean;
 	others?: boolean;
 	ignored?: boolean;
+	signal?: AbortSignal;
+}
+
+interface ReadSeekDetectOptions {
+	transcribe?: boolean;
+	caption?: boolean;
+	objects?: boolean;
 	signal?: AbortSignal;
 }
 
@@ -659,6 +673,21 @@ function parseTranscript(value: unknown): ReadSeekTranscript | undefined {
 	};
 }
 
+function parseDetectedObjects(value: unknown): ReadSeekDetectedObject[] | undefined {
+	if (value === undefined || value === null) return undefined;
+	if (!Array.isArray(value)) throw new Error("invalid readseek detect objects");
+	return value.map((object) => {
+		if (!object || typeof object !== "object") throw new Error("invalid readseek detect object");
+		const item = object as Record<string, unknown>;
+		const bbox = item.bbox;
+		if (!Array.isArray(bbox) || bbox.length !== 4) throw new Error("invalid readseek detect object.bbox");
+		return {
+			label: requireString(item.label, "object.label"),
+			bbox: bbox.map((n, i) => requireNumber(n, `object.bbox[${i}]`)) as ReadSeekDetectedObject["bbox"],
+		};
+	});
+}
+
 function parseDetectOutput(value: unknown): ReadSeekDetection {
 	if (!value || typeof value !== "object") throw new Error("invalid readseek detect output");
 	const output = value as Record<string, unknown>;
@@ -682,6 +711,8 @@ function parseDetectOutput(value: unknown): ReadSeekDetection {
 			height: requireNumber(output.height, "height"),
 			animated: requireBoolean(output.animated, "animated"),
 			transcribe: parseTranscript(output.transcribe),
+			caption: optionalString(output.caption, "caption"),
+			objects: parseDetectedObjects(output.objects),
 		};
 	}
 	if (output.language !== undefined) {
@@ -701,10 +732,12 @@ function parseDetectOutput(value: unknown): ReadSeekDetection {
 
 export async function readseekDetect(
 	filePath: string,
-	options: { transcribe?: boolean; signal?: AbortSignal } = {},
+	options: ReadSeekDetectOptions = {},
 ): Promise<ReadSeekDetection> {
 	const args = ["detect"];
 	if (options.transcribe) args.push("--transcribe");
+	if (options.caption) args.push("--caption");
+	if (options.objects) args.push("--objects");
 	args.push(filePath);
 	return parseDetectOutput(await runReadSeek(args, { signal: options.signal }));
 }
