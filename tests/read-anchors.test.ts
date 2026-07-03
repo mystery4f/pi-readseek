@@ -51,12 +51,14 @@ describe("executeRead anchor tracking", () => {
 			height: 1,
 			animated: false,
 		};
-		readseekDetectMock.mockImplementation((_filePath: string, options?: { transcribe?: boolean }) =>
+		readseekDetectMock.mockImplementation((_filePath: string, options?: { transcribe?: boolean; caption?: boolean; objects?: boolean }) =>
 			Promise.resolve(
-				options?.transcribe
+				options?.transcribe || options?.caption || options?.objects
 					? {
 							...imageDetection,
-							transcribe: { text: "OCR TEXT", regions: [{ text: "OCR TEXT", quad: [0, 0, 1, 0, 1, 1, 0, 1] }] },
+							...(options.transcribe ? { transcribe: { text: "OCR TEXT", regions: [{ text: "OCR TEXT", quad: [0, 0, 1, 0, 1, 1, 0, 1] }] } } : {}),
+							...(options.caption ? { caption: "A tiny test image." } : {}),
+							...(options.objects ? { objects: [{ label: "dot", bbox: [1, 2, 3, 4] }] } : {}),
 						}
 					: imageDetection,
 			),
@@ -120,6 +122,8 @@ describe("executeRead anchor tracking", () => {
 			const text = (result.content as Array<{ type: string; text: string }>).map((part) => part.text).join("\n");
 			expect(text).toContain("image attachment");
 			expect(text).toContain("OCR TEXT");
+			expect(text).toContain("Image caption:\nA tiny test image.");
+			expect(text).toContain("Detected objects:\n- dot [1, 2, 3, 4]");
 		} finally {
 			await rm(cwd, { recursive: true, force: true });
 		}

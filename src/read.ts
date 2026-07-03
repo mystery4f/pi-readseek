@@ -71,6 +71,20 @@ function hasReadAnchors(result: AgentToolResult<any>): boolean {
 	return Array.isArray(lines) && lines.length > 0;
 }
 
+function formatImageAnalysis(detection: ReadSeekDetection): string | undefined {
+	if (detection.kind !== "image") return undefined;
+	const sections: string[] = [];
+	const transcript = detection.transcribe?.text?.trim();
+	if (transcript) sections.push(`Transcribed text from image:\n${transcript}`);
+	const caption = detection.caption?.trim();
+	if (caption) sections.push(`Image caption:\n${caption}`);
+	if (detection.objects?.length) {
+		const lines = detection.objects.map((object) => `- ${object.label} [${object.bbox.join(", ")}]`);
+		sections.push(`Detected objects:\n${lines.join("\n")}`);
+	}
+	return sections.length > 0 ? sections.join("\n\n") : undefined;
+}
+
 export async function executeRead(opts: ExecuteReadOptions): Promise<AgentToolResult<any>> {
 	const { toolCallId, params, signal, onUpdate, cwd, onSuccessfulRead } = opts;
 	await ensureHashInit();
@@ -168,14 +182,19 @@ export async function executeRead(opts: ExecuteReadOptions): Promise<AgentToolRe
 			if (!shouldTranscribe) return succeed(builtinResult);
 
 			try {
-				const ocrDetection = await readseekDetect(absolutePath, { transcribe: true, signal });
-				const transcript = ocrDetection.kind === "image" ? ocrDetection.transcribe?.text?.trim() : undefined;
-				if (transcript) {
+				const ocrDetection = await readseekDetect(absolutePath, {
+					transcribe: true,
+					caption: true,
+					objects: true,
+					signal,
+				});
+				const imageAnalysis = formatImageAnalysis(ocrDetection);
+				if (imageAnalysis) {
 					return succeed({
 						...builtinResult,
 						content: [
 							...(builtinResult.content ?? []),
-							{ type: "text" as const, text: `Transcribed text from image:\n${transcript}` },
+							{ type: "text" as const, text: imageAnalysis },
 						],
 					});
 				}
