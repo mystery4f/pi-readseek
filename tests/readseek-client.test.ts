@@ -42,6 +42,23 @@ function spawnResult(stdout: string) {
 	return child;
 }
 
+function spawnSignalCrash(signal: NodeJS.Signals) {
+	const child = new EventEmitter() as EventEmitter & {
+		stdout: PassThrough;
+		stderr: PassThrough;
+		kill: ReturnType<typeof vi.fn>;
+	};
+	child.stdout = new PassThrough();
+	child.stderr = new PassThrough();
+	child.kill = vi.fn();
+	queueMicrotask(() => {
+		child.stdout.end();
+		child.stderr.end();
+		child.emit("close", null, signal);
+	});
+	return child;
+}
+
 describe("readseek client parsing", () => {
 	let previousReadSeekBin: string | undefined;
 	let tempHome: string;
@@ -81,6 +98,14 @@ describe("readseek client parsing", () => {
 			["read", "/tmp/file.txt", "--start", "2", "--end", "4"],
 			expect.any(Object),
 		);
+	});
+
+	it("reports readseek signal crashes by signal name", async () => {
+		spawnMock
+			.mockImplementationOnce(() => spawnResult(""))
+			.mockImplementationOnce(() => spawnSignalCrash("SIGFPE"));
+
+		await expect(readseekRead("/tmp/file.txt")).rejects.toThrow("readseek killed by signal SIGFPE");
 	});
 
 	it("accepts readseek 0.4 search matches without pattern_index", async () => {

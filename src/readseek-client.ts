@@ -362,10 +362,11 @@ async function spawnReadSeekRaw(args: string[], options: RunReadSeekOptions = {}
 			});
 			childStdin.end(stdin, "utf-8");
 		}
-		child.on("close", (code) => {
+		child.on("close", (code, signal) => {
 			const stdout = Buffer.concat(stdoutChunks).toString("utf-8");
 			const stderr = Buffer.concat(stderrChunks).toString("utf-8").trim();
 			if (code === 0) succeed(stdout);
+			else if (signal) fail(new Error((stderr || `readseek killed by signal ${signal}`).replace(/^error:\s*/i, "")));
 			else fail(new Error((stderr || `readseek exited with status ${code}`).replace(/^error:\s*/i, "")));
 		});
 	});
