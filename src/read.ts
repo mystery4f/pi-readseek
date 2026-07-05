@@ -29,7 +29,7 @@ import { coerceObviousBase10Int } from "./coerce-obvious-int.js";
 import { readseekRead, readseekDetect, type ReadSeekDetection } from "./readseek-client.js";
 import { formatReadCallText, formatReadResultText } from "./read-render-helpers.js";
 import { resolveReadSeekOcrMode } from "./readseek-settings.js";
-import { clampLineToWidth, clampLinesToWidth, linkToolPath, renderPendingResult, renderToolLabel, resolveRenderResultContext, summaryLine, wrapReadHashlinesForWidth } from "./tui-render-utils.js";
+import { clampLineToWidth, clampLinesToWidth, linkToolPath, renderPendingResult, renderToolLabel, resolveRenderResultContext, summaryLine, wrapReadHashlinesForWidthCached } from "./tui-render-utils.js";
 import type { FileAnchoredCallback } from "./tool-types.js";
 import { filePathParam, mapParam, optionalIntOrString, registerReadSeekTool } from "./register-tool.js";
 
@@ -543,7 +543,7 @@ export function registerReadTool(pi: ExtensionAPI, options: ReadToolOptions = {}
 			for (const badge of info.badges) summaryParts.push(badge);
 			const summary = summaryParts.join(" • ");
 			let text = summaryLine(summary, { hidden: !!textContent && !expanded });
-			if (expanded && textContent) text += "\n" + wrapReadHashlinesForWidth(textContent, width);
+			if (expanded && textContent) text += "\n" + wrapReadHashlinesForWidthCached(content, textContent, width);
 			return new Text(clampLinesToWidth(text.split("\n"), width).join("\n"), 0, 0);
 		},
 	});

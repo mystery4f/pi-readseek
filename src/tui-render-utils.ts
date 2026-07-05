@@ -149,6 +149,26 @@ export function wrapReadHashlinesForWidth(text: string, width: number | undefine
   return output.join("\n");
 }
 
+const wrappedHashlinesCache = new WeakMap<object, { text: string; width: number | undefined; wrapped: string }>();
+
+/**
+ * Memoized {@link wrapReadHashlinesForWidth} for render paths that re-run on
+ * every TUI frame: the wrapped output is cached per result content object so
+ * an expanded read result is only re-wrapped when its text or the terminal
+ * width changes.
+ */
+export function wrapReadHashlinesForWidthCached(
+  cacheKey: object,
+  text: string,
+  width: number | undefined,
+): string {
+  const cached = wrappedHashlinesCache.get(cacheKey);
+  if (cached && cached.text === text && cached.width === width) return cached.wrapped;
+  const wrapped = wrapReadHashlinesForWidth(text, width);
+  wrappedHashlinesCache.set(cacheKey, { text, width, wrapped });
+  return wrapped;
+}
+
 /**
  * Render the `isPartial` placeholder line shared by every tool's `renderResult`.
  */
