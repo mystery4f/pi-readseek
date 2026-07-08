@@ -1,4 +1,3 @@
-import { readFile as fsReadFile } from "node:fs/promises";
 import { relative as relativePath, isAbsolute } from "node:path";
 
 import type { ExtensionAPI, ToolRenderResultOptions, AgentToolResult } from "@earendil-works/pi-coding-agent";
@@ -12,15 +11,10 @@ import { Type } from "@sinclair/typebox";
 import { Text } from "@earendil-works/pi-tui";
 
 import { defineToolPromptMetadata } from "./tool-prompt-metadata.js";
-import { normalizeToLF, stripBom, hasBareCarriageReturn } from "./edit-diff.js";
-import { ensureHashInit, escapeControlCharsForDisplay } from "./hashline.js";
+import { ensureHashInit } from "./hashline.js";
 import { buildReadSeekWarning, buildToolErrorResult, renderReadSeekLines, type ReadSeekLine, type ReadSeekWarning } from "./readseek-value.js";
-import { looksLikeBinary } from "./binary-detect.js";
-import { resolveToCwd } from "./path-utils.js";
-import { throwIfAborted } from "./runtime.js";
-import { formatFsError } from "./fs-error.js";
-import { coerceObviousBase10Int } from "./coerce-obvious-int.js";
-import { readseekRead, readseekDetect, type ReadSeekDetection } from "./readseek-client.js";
+import { readAnchoredRange } from "./read-range.js";
+import { readseekDetect, type ReadSeekDetection } from "./readseek-client.js";
 import { resolveReadSeekOcrMode } from "./readseek-settings.js";
 import {
 	clampLineToWidth,
@@ -32,8 +26,8 @@ import {
 	summaryLine,
 } from "./tui-render-utils.js";
 import type { FileAnchoredCallback } from "./tool-types.js";
+import { throwIfAborted } from "./runtime.js";
 import { filePathParam, optionalIntOrString, registerReadSeekTool } from "./register-tool.js";
-
 const READ_MANY_PROMPT_METADATA = defineToolPromptMetadata({
 	promptUrl: new URL("../prompts/read-many.md", import.meta.url),
 	promptSnippet: "Read multiple files in one call with per-file offset/limit; combined output uses per-file LINE:HASH anchor blocks under a shared budget",
@@ -43,6 +37,7 @@ interface ReadManyFileParams {
 	path: string;
 	offset?: number | string;
 	limit?: number | string;
+symbol?: string;
 }
 
 interface ReadManyParams {
@@ -77,6 +72,14 @@ type FileResult =
 			endLine: number;
 			totalLines: number;
 			warnings: ReadSeekWarning[];
+symbol?: {
+				query: string;
+				name: string;
+				kind: string;
+				parentName?: string;
+				startLine: number;
+				endLine: number;
+			};
 	  }
 	| {
 			kind: "summary";
@@ -102,11 +105,6 @@ interface RenderedBlock {
 
 const MAX_FILES = 26;
 
-function splitLines(text: string): string[] {
-	if (text.length === 0) return [];
-	const withoutTrailingTerminator = text.endsWith("\n") ? text.slice(0, -1) : text;
-	return withoutTrailingTerminator.split("\n");
-}
 
 function displayPathFor(absolutePath: string, cwd: string, rawPath: string): string {
 	const rel = relativePath(cwd, absolutePath);
@@ -135,7 +133,7 @@ function formatImageAnalysis(detection: ReadSeekDetection): string | undefined {
 /**
  * Read one file range through readseek and return anchored lines, a text
  * summary (images / other binary), or an error. Mirrors the text path of
- * `executeRead` but without per-file truncation, map, symbol, or bundle.
+ * `executeRead` but without per-file truncation, map, or bundle.
  */
 async function readFileAnchoredRange(
 	entry: ReadManyFileParams,
@@ -145,119 +143,93 @@ async function readFileAnchoredRange(
 	opts: { modelSupportsImages?: boolean },
 ): Promise<FileResult> {
 	const rawPath = entry.path.replace(/^@/, "");
-	const absolutePath = resolveToCwd(rawPath, cwd);
 
-	const offset = coerceObviousBase10Int(entry.offset, "offset");
-	if (!offset.ok) {
-		return { kind: "error", index, rawPath, message: offset.message };
-	}
-	const limit = coerceObviousBase10Int(entry.limit, "limit");
-	if (!limit.ok) {
-		return { kind: "error", index, rawPath, message: limit.message };
-	}
-	if (limit.value !== undefined && limit.value < 1) {
-		return { kind: "error", index, rawPath, message: `Invalid limit: expected a positive integer, received ${limit.value}.` };
-	}
-	if (offset.value !== undefined && offset.value < 1) {
-		return { kind: "error", index, rawPath, message: `Invalid offset: expected a positive integer, received ${offset.value}.` };
-	}
-
-	throwIfAborted(signal);
-
-	let rawBuffer: Buffer;
 	try {
-		rawBuffer = await fsReadFile(absolutePath);
-	} catch (err: any) {
-		const { code, message } = formatFsError(err, "read-error");
-		return { kind: "error", index, rawPath, message: `${code}: ${message.replace(/^read-error:\s*/, "")}` };
-	}
+		const result = await readAnchoredRange({
+			rawPath: entry.path,
+			cwd,
+			offset: entry.offset,
+			limit: entry.limit,
+			symbol: entry.symbol,
+			signal,
+		});
 
-	const warnings: ReadSeekWarning[] = [];
-
-	if (looksLikeBinary(rawBuffer)) {
-		let detection: ReadSeekDetection | undefined;
-		try {
-			detection = await readseekDetect(absolutePath, { signal });
-		} catch {
-			// detection is best-effort
+		if (result.kind === "ambiguous") {
+			return { kind: "summary", index, rawPath, absolutePath: "", summary: result.message, warnings: [] };
 		}
-		if (detection?.kind === "image") {
-			const ocrMode = resolveReadSeekOcrMode();
-			const shouldTranscribe = ocrMode === "on" || (ocrMode === "auto" && !opts.modelSupportsImages);
-			if (shouldTranscribe) {
-				try {
-					const rich = await readseekDetect(absolutePath, {
-						transcribe: true,
-						caption: true,
-						objects: true,
-						signal,
-					});
-					const analysis = formatImageAnalysis(rich);
-					if (analysis) {
-						return { kind: "summary", index, rawPath, absolutePath, summary: analysis, warnings };
-					}
-				} catch {
-					warnings.push(buildReadSeekWarning("ocr-unavailable", "[Warning: local image analysis (OCR) unavailable]"));
-				}
+
+		if (result.kind === "binary") {
+			const warnings: ReadSeekWarning[] = [];
+			let detection: ReadSeekDetection | undefined;
+			try {
+				detection = await readseekDetect(result.absolutePath, { signal });
+			} catch {
+				// detection is best-effort
 			}
+			if (detection?.kind === "image") {
+				const ocrMode = resolveReadSeekOcrMode();
+				const shouldTranscribe = ocrMode === "on" || (ocrMode === "auto" && !opts.modelSupportsImages);
+				if (shouldTranscribe) {
+					try {
+						const rich = await readseekDetect(result.absolutePath, {
+							transcribe: true,
+							caption: true,
+							objects: true,
+							signal,
+						});
+						const analysis = formatImageAnalysis(rich);
+						if (analysis) {
+							return { kind: "summary", index, rawPath, absolutePath: result.absolutePath, summary: analysis, warnings };
+						}
+					} catch {
+						warnings.push(buildReadSeekWarning("ocr-unavailable", "[Warning: local image analysis (OCR) unavailable]"));
+					}
+				}
+				return {
+					kind: "summary",
+					index,
+					rawPath,
+					absolutePath: result.absolutePath,
+					summary: `[Image: ${detection.format} ${detection.width}x${detection.height}${detection.animated ? " (animated)" : ""} — use read() for the attachment]`,
+					warnings,
+				};
+			}
+			warnings.push(buildReadSeekWarning("binary-content", "[Warning: file appears to be binary — skipped]"));
 			return {
 				kind: "summary",
 				index,
 				rawPath,
-				absolutePath,
-				summary: `[Image: ${detection.format} ${detection.width}x${detection.height}${detection.animated ? " (animated)" : ""} — use read() for the attachment]`,
+				absolutePath: result.absolutePath,
+				summary: "[Binary file — use read() for image OCR or direct view]",
 				warnings,
 			};
 		}
-		warnings.push(buildReadSeekWarning("binary-content", "[Warning: file appears to be binary — skipped]"));
-		return { kind: "summary", index, rawPath, absolutePath, summary: "[Binary file — use read() for image OCR or direct view]", warnings };
-	}
 
-	throwIfAborted(signal);
-
-	const rawText = rawBuffer.toString("utf-8");
-	const normalized = normalizeToLF(stripBom(rawText).text);
-	const allLines = splitLines(normalized);
-	const total = allLines.length;
-	const startLine = offset.value ?? 1;
-	const endIdx = limit.value !== undefined ? Math.min(startLine - 1 + limit.value, total) : total;
-
-	if (offset.value !== undefined && startLine > total) {
-		return { kind: "error", index, rawPath, message: `offset ${offset.value} is past end of file (${total} lines)` };
-	}
-
-	let readseekOutput: Awaited<ReturnType<typeof readseekRead>>;
-	try {
-		readseekOutput = total === 0
-			? await readseekRead(absolutePath)
-			: await readseekRead(absolutePath, startLine, endIdx);
+		// result.kind === "text"
+		return {
+			kind: "text",
+			index,
+			rawPath,
+			absolutePath: result.absolutePath,
+			lines: result.lines,
+			startLine: result.startLine,
+			endLine: result.endLine,
+			totalLines: result.totalLines,
+			warnings: result.warnings,
+			...(result.symbolMatch ? {
+				symbol: {
+					query: result.symbolQuery!,
+					name: result.symbolMatch.name,
+					kind: result.symbolMatch.kind,
+					parentName: result.symbolMatch.parentName,
+					startLine: result.symbolMatch.startLine,
+					endLine: result.symbolMatch.endLine,
+				},
+			} : {}),
+		};
 	} catch (err: any) {
-		const detail = err?.message ? ` — ${err.message}` : "";
-		return { kind: "error", index, rawPath, message: `readseek failed while reading ${rawPath}${detail}` };
+		return { kind: "error", index, rawPath, message: err.message || String(err) };
 	}
-
-	const expectedLineCount = Math.max(0, endIdx - startLine + 1);
-	const invalidLine = readseekOutput.hashlines.find((line, i) => line.line !== startLine + i);
-	if (readseekOutput.hashlines.length !== expectedLineCount || invalidLine) {
-		const message = invalidLine
-			? `readseek returned non-sequential line ${invalidLine.line} for requested range ${startLine}-${endIdx}`
-			: `readseek returned ${readseekOutput.hashlines.length} lines for requested range ${startLine}-${endIdx} (${expectedLineCount} expected)`;
-		return { kind: "error", index, rawPath, message };
-	}
-
-	const lines: ReadSeekLine[] = readseekOutput.hashlines.map((line) => ({
-		line: line.line,
-		hash: line.hash,
-		anchor: `${line.line}:${line.hash}`,
-		raw: line.text,
-		display: escapeControlCharsForDisplay(line.text),
-	}));
-
-	if (hasBareCarriageReturn(rawText)) {
-		warnings.push(buildReadSeekWarning("bare-cr", "[Warning: file contains bare CR (\\r) line endings — line numbering may be inconsistent with grep and other tools]"));
-	}
-
-	return { kind: "text", index, rawPath, absolutePath, lines, startLine, endLine: endIdx, totalLines: total, warnings };
 }
 
 function renderBlock(result: FileResult, cwd: string): RenderedBlock {
@@ -275,10 +247,15 @@ function renderBlock(result: FileResult, cwd: string): RenderedBlock {
 		return { result, text, lineCount: text.split("\n").length, byteCount: Buffer.byteLength(text, "utf8") };
 	}
 
-	const rangeLabel = `(lines ${result.startLine}-${result.endLine} of ${result.totalLines})`;
+const rangeLabel = result.symbol
+		? `[Symbol: ${result.symbol.name} (${result.symbol.kind})${result.symbol.parentName ? ` in ${result.symbol.parentName}` : ""}, lines ${result.startLine}-${result.endLine} of ${result.totalLines}]`
+		: `(lines ${result.startLine}-${result.endLine} of ${result.totalLines})`;
+	const symbolBanner = result.symbol ? `[Symbol: ${result.symbol.name} (${result.symbol.kind})${result.symbol.parentName ? ` in ${result.symbol.parentName}` : ""}]
+
+` : "";
 	const warningBanner = result.warnings.length ? `${result.warnings.map((w) => w.message).join("\n\n")}\n\n` : "";
 	const body = renderReadSeekLines(result.lines);
-	const text = `--- ${headerPath} ${rangeLabel} ---\n${warningBanner}${body}`;
+	const text = `--- ${headerPath} ${rangeLabel} ---\n${symbolBanner}${warningBanner}${body}`;
 	return { result, text, lineCount: text.split("\n").length, byteCount: Buffer.byteLength(text, "utf8") };
 }
 
@@ -411,8 +388,9 @@ export async function executeReadMany(opts: ExecuteReadManyOptions): Promise<Age
 			return {
 				path: r.absolutePath,
 				ok: true as const,
-				range: { startLine: r.startLine, endLine: r.endLine, totalLines: r.totalLines },
+range: { startLine: r.startLine, endLine: r.endLine, totalLines: r.totalLines },
 				lines: r.lines,
+				...(r.symbol ? { symbol: r.symbol } : {}),
 			};
 		}
 		if (r.kind === "summary") {
@@ -461,6 +439,7 @@ export function registerReadManyTool(pi: ExtensionAPI, options: ReadManyToolOpti
 					path: filePathParam(),
 					offset: optionalIntOrString("Start line (1-indexed)"),
 					limit: optionalIntOrString("Max lines"),
+symbol: Type.Optional(Type.String({ description: "Symbol name to read (cannot combine with offset/limit)" })),
 				}),
 				{ minItems: 1, maxItems: MAX_FILES, description: "Files to read, in render order (max 26)" },
 			),

@@ -113,8 +113,7 @@ describe("executeRead anchor tracking", () => {
 				height: 1,
 				animated: false,
 			};
-			readseekDetectMock
-				.mockImplementationOnce(() => Promise.resolve(imageDetection))
+readseekDetectMock
 				.mockRejectedValueOnce(new Error("readseek crashed with SIGFPE"));
 			createReadToolExecuteMock.mockResolvedValueOnce({
 				content: [{ type: "text", text: "image attachment" }],
@@ -190,7 +189,7 @@ describe("executeRead anchor tracking", () => {
 
 			const text = (result.content as Array<{ type: string; text: string }>).map((part) => part.text).join("\n");
 			expect(text).toBe("image attachment");
-			expect(readseekDetectMock).toHaveBeenCalledTimes(1);
+			expect(readseekDetectMock).toHaveBeenCalledTimes(0);
 		} finally {
 			await rm(cwd, { recursive: true, force: true });
 		}
@@ -217,7 +216,7 @@ describe("executeRead anchor tracking", () => {
 
 			const text = (result.content as Array<{ type: string; text: string }>).map((part) => part.text).join("\n");
 			expect(text).toBe("image attachment");
-			expect(readseekDetectMock).toHaveBeenCalledTimes(1);
+			expect(readseekDetectMock).toHaveBeenCalledTimes(0);
 		} finally {
 			await rm(cwd, { recursive: true, force: true });
 		}

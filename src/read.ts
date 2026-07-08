@@ -32,6 +32,7 @@ import { resolveReadSeekOcrMode } from "./readseek-settings.js";
 import { clampLineToWidth, clampLinesToWidth, linkToolPath, renderPendingResult, renderToolLabel, resolveRenderResultContext, summaryLine, wrapReadHashlinesForWidthCached } from "./tui-render-utils.js";
 import type { FileAnchoredCallback } from "./tool-types.js";
 import { filePathParam, mapParam, optionalIntOrString, registerReadSeekTool } from "./register-tool.js";
+import { readAnchoredRange } from "./read-range.js";
 
 const READ_PROMPT_METADATA = defineToolPromptMetadata({
 	promptUrl: new URL("../prompts/read.md", import.meta.url),
@@ -86,7 +87,7 @@ function formatImageAnalysis(detection: ReadSeekDetection): string | undefined {
 }
 
 export async function executeRead(opts: ExecuteReadOptions): Promise<AgentToolResult<any>> {
-	const { toolCallId, params, signal, onUpdate, cwd, onSuccessfulRead } = opts;
+const { toolCallId, params, signal, onUpdate, cwd, onSuccessfulRead } = opts;
 	await ensureHashInit();
 	const rawParams = params as ReadParams;
 	const offset = coerceObviousBase10Int(rawParams.offset, "offset");
@@ -155,80 +156,87 @@ export async function executeRead(opts: ExecuteReadOptions): Promise<AgentToolRe
 		const message = "Cannot combine map with symbol. Use one or the other.";
 		return buildToolErrorResult("read", "invalid-params-combo", message, { path: rawParams.path });
 	}
+
 	throwIfAborted(signal);
-	const ext = rawPath.split(".").pop()?.toLowerCase() ?? "";
-	let rawBuffer: Buffer;
+
+	// --- shared read pipeline ---
+	let rangeResult;
 	try {
-		rawBuffer = await fsReadFile(absolutePath);
+		rangeResult = await readAnchoredRange({
+			rawPath: p.path,
+			cwd,
+			offset: p.offset,
+			limit: p.limit,
+			symbol: p.symbol,
+			signal,
+		});
 	} catch (err: any) {
-		const { code, message } = formatFsError(err, "read-error");
-		return buildToolErrorResult("read", code, message, {
-			path: rawParams.path,
+		const code = err.code ?? "readseek-error";
+		return buildToolErrorResult("read", code, err.message || String(err), { path: rawParams.path });
+	}
+
+	if (rangeResult.kind === "ambiguous") {
+		return succeed({
+			content: [{ type: "text", text: rangeResult.message }],
+			isError: false,
+			details: {},
 		});
 	}
 
-	const hasBinaryContent = looksLikeBinary(rawBuffer);
-	if (hasBinaryContent) {
-		let detection: ReadSeekDetection | undefined;
-		try {
-			detection = await readseekDetect(absolutePath, { signal });
-		} catch {
-		}
-		if (detection?.kind === "image") {
-			const builtinRead = createReadTool(cwd);
-			const builtinResult = await builtinRead.execute(toolCallId, p, signal, onUpdate);
-			const ocrMode = resolveReadSeekOcrMode();
-			const shouldTranscribe = ocrMode === "on" || (ocrMode === "auto" && !opts.modelSupportsImages);
-			if (!shouldTranscribe) return succeed(builtinResult);
+	if (rangeResult.kind === "binary") {
+		const builtinRead = createReadTool(cwd);
+		const builtinResult = await builtinRead.execute(toolCallId, p, signal, onUpdate);
+		const ocrMode = resolveReadSeekOcrMode();
+		const shouldTranscribe = ocrMode === "on" || (ocrMode === "auto" && !opts.modelSupportsImages);
+		if (!shouldTranscribe) return succeed(builtinResult);
 
-			let ocrFailed = false;
-			try {
-				const ocrDetection = await readseekDetect(absolutePath, {
-					transcribe: true,
-					caption: true,
-					objects: true,
-					signal,
-				});
-				const imageAnalysis = formatImageAnalysis(ocrDetection);
-				if (imageAnalysis) {
-					return succeed({
-						...builtinResult,
-						content: [
-							...(builtinResult.content ?? []),
-							{ type: "text" as const, text: imageAnalysis },
-						],
-					});
-				}
-			} catch {
-				ocrFailed = true;
-			}
-			if (ocrFailed) {
+		let ocrFailed = false;
+		try {
+			const ocrDetection = await readseekDetect(rangeResult.absolutePath, {
+				transcribe: true,
+				caption: true,
+				objects: true,
+				signal,
+			});
+			const imageAnalysis = formatImageAnalysis(ocrDetection);
+			if (imageAnalysis) {
 				return succeed({
 					...builtinResult,
 					content: [
 						...(builtinResult.content ?? []),
-						{ type: "text" as const, text: "[Warning: local image analysis (OCR) unavailable — showing image attachment only]" },
+						{ type: "text" as const, text: imageAnalysis },
 					],
 				});
 			}
-			return succeed(builtinResult);
+		} catch {
+			ocrFailed = true;
 		}
+		if (ocrFailed) {
+			return succeed({
+				...builtinResult,
+				content: [
+					...(builtinResult.content ?? []),
+					{ type: "text" as const, text: "[Warning: local image analysis (OCR) unavailable — showing image attachment only]" },
+				],
+			});
+		}
+		return succeed(builtinResult);
 	}
-	throwIfAborted(signal);
-	const rawText = rawBuffer.toString("utf-8");
-	const normalized = normalizeToLF(stripBom(rawText).text);
-	const allLines = splitReadSeekLines(normalized);
-	const total = allLines.length;
-	const structuredWarnings: ReadSeekWarning[] = [];
-	let startLine = p.offset !== undefined ? p.offset : 1;
-	let endIdx = p.limit !== undefined ? Math.min(startLine - 1 + p.limit, total) : total;
-	if (p.offset !== undefined && startLine > total) {
-		const message = `offset ${p.offset} is past end of file (${total} lines)`;
-		return buildToolErrorResult("read", "offset-past-end", message, { path: rawParams.path });
-	}
-	let symbolMatch: SymbolMatch | undefined;
-	let symbolFileMap: Awaited<ReturnType<typeof getOrGenerateMap>> | null = null;
-	let symbolWarning: string | undefined;
+
+	// --- rangeResult.kind === "text" ---
+	const {
+		lines,
+		startLine,
+		endLine: endIdx,
+		totalLines: total,
+		warnings: structuredWarnings,
+		symbolFileMap,
+		symbolMatch,
+		symbolQuery,
+		allLines,
+	} = rangeResult;
+
+	// --- bundle local (read-specific) ---
 	let bundleMetadata:
 		| {
 				mode: "local";
@@ -247,64 +255,12 @@ export async function executeRead(opts: ExecuteReadOptions): Promise<AgentToolRe
 				warnings: ReadSeekWarning[];
 		  }
 		| null = null;
-	if (p.symbol) {
-		symbolFileMap = await getOrGenerateMap(absolutePath);
-		if (!symbolFileMap) {
-			const extLabel = ext || "unknown";
-			symbolWarning = `[Warning: symbol lookup not available for .${extLabel} files — showing full file]\n\n`;
-		} else {
-			const lookup = findSymbol(symbolFileMap, p.symbol);
-			if (lookup.type === "ambiguous") {
-				return succeed({
-					content: [
-						{
-							type: "text",
-							text: formatAmbiguous(p.symbol, lookup.candidates),
-						},
-					],
-					isError: false,
-					details: {},
-				});
-			}
-			if (lookup.type === "not-found") {
-				symbolWarning = `${formatNotFound(p.symbol, symbolFileMap)}\n\n`;
-			}
-			if (lookup.type === "found") {
-				startLine = Math.max(1, lookup.symbol.startLine);
-				endIdx = Math.min(total, lookup.symbol.endLine);
-				symbolMatch = lookup.symbol;
-			}
-			if (lookup.type === "fuzzy") {
-				startLine = Math.max(1, lookup.symbol.startLine);
-				endIdx = Math.min(total, lookup.symbol.endLine);
-				symbolMatch = lookup.symbol;
-
-				const tierLabel = lookup.tier === "camelCase" ? "camelCase word boundary" : "substring";
-				const otherNames = lookup.otherCandidates.map((c) => `\`${c.name}\``).join(", ");
-				const confirmHint = `read({ symbol: "${lookup.symbol.name}" }) or ${lookup.symbol.name}@${lookup.symbol.startLine} to select by start line`;
-				const lines = [
-					`[Symbol '${p.symbol}' not exact-matched. Closest match: \`${lookup.symbol.name}\` (${lookup.symbol.kind}, lines ${lookup.symbol.startLine}-${lookup.symbol.endLine}) via ${tierLabel}.`,
-				];
-				if (otherNames) lines.push(` Other candidates: ${otherNames}.`);
-				lines.push(` To confirm: ${confirmHint}.]`);
-				const bannerText = lines.join("\n");
-				structuredWarnings.push(
-					buildReadSeekWarning("fuzzy-symbol-match", bannerText, {
-						tier: lookup.tier,
-						symbol: lookup.symbol,
-						otherCandidates: lookup.otherCandidates,
-					}),
-				);
-			}
-		}
-	}
-
 	if (p.bundle === "local") {
 		if (!symbolFileMap) {
-			const extLabel = ext || "unknown";
+			const ext = absolutePath.split(".").pop()?.toLowerCase() ?? "unknown";
 			const warning = buildReadSeekWarning(
 				"bundle-unmappable",
-				`[Warning: local bundle unavailable because symbol mapping is not available for .${extLabel} files — showing plain symbol read]`,
+				`[Warning: local bundle unavailable because symbol mapping is not available for .${ext} files — showing plain symbol read]`,
 			);
 			structuredWarnings.push(warning);
 			bundleMetadata = {
@@ -356,37 +312,13 @@ export async function executeRead(opts: ExecuteReadOptions): Promise<AgentToolRe
 	}
 
 	throwIfAborted(signal);
-	let readseekOutput: Awaited<ReturnType<typeof readseekRead>>;
-	try {
-		readseekOutput = total === 0
-			? await readseekRead(absolutePath)
-			: await readseekRead(absolutePath, startLine, endIdx);
-	} catch (err: any) {
-		const detail = err?.message ? ` — ${err.message}` : "";
-		const message = `readseek failed while reading ${rawPath}${detail}`;
-		return buildToolErrorResult("read", "readseek-error", message, { path: rawParams.path, hint: "Ensure @jarkkojs/readseek and its npm platform package are installed.", details: { message: err?.message } });
-	}
-	const expectedLineCount = Math.max(0, endIdx - startLine + 1);
-	const invalidLine = readseekOutput.hashlines.find((line, index) => line.line !== startLine + index);
-	if (readseekOutput.hashlines.length !== expectedLineCount || invalidLine) {
-		const message = invalidLine
-			? `readseek returned non-sequential line ${invalidLine.line} for requested range ${startLine}-${endIdx}`
-			: `readseek returned ${readseekOutput.hashlines.length} lines for requested range ${startLine}-${endIdx} (${expectedLineCount} expected)`;
-		return buildToolErrorResult("read", "readseek-output-mismatch", message, { path: rawParams.path });
-	}
-	const readseekLines: ReadSeekLine[] = readseekOutput.hashlines.map((line) => ({
-		line: line.line,
-		hash: line.hash,
-		anchor: `${line.line}:${line.hash}`,
-		raw: line.text,
-		display: escapeControlCharsForDisplay(line.text),
-	}));
-	const selected = readseekLines.map((line) => line.raw);
-	const formatted = renderReadSeekLines(readseekLines);
 
+	// --- anchored lines + per-file truncation ---
+	const selected = lines.map((line) => line.raw);
+	const formatted = renderReadSeekLines(lines);
 	const truncation = truncateHead(formatted, { maxLines: DEFAULT_MAX_LINES, maxBytes: DEFAULT_MAX_BYTES });
 
-	// Append structural map: on-demand (p.map) or auto on truncated full-file reads
+	// --- structural map (read-specific) ---
 	const shouldAppendMap = !!p.map || (!!truncation.truncated && !p.offset && !p.limit && !symbolMatch);
 	let appendedMap = false;
 	let mapText: string | null = null;
@@ -394,8 +326,7 @@ export async function executeRead(opts: ExecuteReadOptions): Promise<AgentToolRe
 		try {
 			const fileMap = await getOrGenerateMap(absolutePath);
 			if (fileMap) {
-				const formattedMap = formatFileMapWithBudget(fileMap);
-				mapText = formattedMap;
+				mapText = formatFileMapWithBudget(fileMap);
 				appendedMap = true;
 			}
 		} catch {
@@ -403,27 +334,14 @@ export async function executeRead(opts: ExecuteReadOptions): Promise<AgentToolRe
 		}
 	}
 
-	if (symbolWarning) {
-		structuredWarnings.push(buildReadSeekWarning("symbol-warning", symbolWarning.trim()));
-	}
-
-	if (hasBinaryContent) {
-		const warning = "[Warning: file appears to be binary — output may be garbled]";
-		structuredWarnings.push(buildReadSeekWarning("binary-content", warning));
-	}
-
-	if (hasBareCarriageReturn(rawText)) {
-		const warning = "[Warning: file contains bare CR (\\r) line endings — line numbering may be inconsistent with grep and other tools]";
-		structuredWarnings.push(buildReadSeekWarning("bare-cr", warning));
-	}
-
+	// --- build output ---
 	const readOutput = buildReadOutput({
 		path: absolutePath,
 		startLine,
 		endLine: endIdx,
 		totalLines: total,
 		selectedLines: selected,
-		lines: readseekLines,
+		lines,
 		warnings: structuredWarnings,
 		truncation: truncation.truncated
 			? {
@@ -436,7 +354,7 @@ export async function executeRead(opts: ExecuteReadOptions): Promise<AgentToolRe
 		continuation: !truncation.truncated && endIdx < total ? { nextOffset: endIdx + 1 } : null,
 		symbol: symbolMatch
 			? {
-					query: p.symbol ?? symbolMatch.name,
+					query: symbolQuery ?? symbolMatch.name,
 					name: symbolMatch.name,
 					kind: symbolMatch.kind,
 					parentName: symbolMatch.parentName,
