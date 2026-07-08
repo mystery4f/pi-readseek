@@ -1,5 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { registerReadTool } from "./src/read.js";
+import { registerReadManyTool } from "./src/read-many.js";
 import { registerEditTool } from "./src/edit.js";
 import { registerGrepTool } from "./src/grep.js";
 import { registerSgTool } from "./src/sg.js";
@@ -17,6 +18,7 @@ export default function piReadSeekExtension(pi: ExtensionAPI): void {
 	const hasFreshAnchors = (absolutePath: string) => sessionAnchors.hasFreshAnchors(absolutePath);
 
 	registerReadTool(pi, { onSuccessfulRead: markAnchored });
+	registerReadManyTool(pi, { onSuccessfulRead: markAnchored });
 	registerEditTool(pi, { wasReadInSession: hasFreshAnchors });
 	const searchAvailable = isReadSeekAvailable();
 	const searchGuideline = searchAvailable

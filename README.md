@@ -27,6 +27,10 @@ npm install --save-dev @jarkkojs/readseek
   images are returned as attachments and may include local OCR, caption, and
   object text. Supports `symbol`, `map`, and `bundle` options powered by
   `@jarkkojs/readseek`.
+- **read_many** — reads multiple files (or per-file `offset`/`limit` ranges) in
+  one call. Each file is grouped under a section header with the same
+  `LINE:HASH` anchors as `read`, combined under a shared output budget with
+  adaptive packing. Images and binary files are summarized in text.
 - **edit** — changes existing text files using fresh anchors from `read`,
   `grep`, `search`, or `write`. Variants: `set_line`, `replace_lines`,
   `insert_after`, `replace_symbol`, `replace`. Set `new_text` to `""` to

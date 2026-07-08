@@ -5,6 +5,7 @@ import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize } from "@earendil-work
 const COMPACT_DESCRIPTIONS: Record<string, string> = {
   "read.md": "Read text files/images by path; text has LINE:HASH anchors, images return the attachment plus OCR-extracted text.",
   "edit.md": "Edit existing text files using fresh LINE:HASH anchors from read, grep, search, or write.",
+  "read-many.md": "Read multiple files in one call with per-file offset/limit; combined output uses per-file LINE:HASH anchor blocks under a shared budget.",
   "grep.md": "Search file contents; non-summary results include LINE:HASH anchors for edits.",
 
   "write.md": "Create or overwrite a complete file and return anchors.",
@@ -17,6 +18,10 @@ const COMPACT_GUIDELINES: Record<string, string[]> = {
     "Use read for file contents, images/screenshots, ranges, symbols, and edit anchors.",
     "Use map or symbol mode before pulling large code files into context.",
     "Use read for images; it returns the image attachment plus OCR-extracted text, so you don't need separate OCR tools.",
+  ],
+  "read-many.md": [
+    "Use read_many to pull several files (or targeted ranges) into context in one round-trip.",
+    "Use read (not read_many) when you need map, symbol, bundle, image attachments, or OCR.",
   ],
   "edit.md": [
     "Use edit with fresh LINE:HASH anchors for existing files.",
